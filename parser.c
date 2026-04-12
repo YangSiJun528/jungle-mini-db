@@ -1,0 +1,167 @@
+#include <stdio.h>
+#include <string.h>
+
+#include "mini_db.h"
+
+static Plan parse_select(const char *sql);
+static Plan parse_insert(const char *sql);
+static int starts_with(const char *text, const char *prefix);
+static void set_error(Plan *plan, const char *message);
+static int is_ascii_text(const char *text);
+static void remove_trailing_semicolon(char *text);
+static char *trim(char *text);
+
+Plan parse_sql(const char *sql) {
+    Plan plan = {0};
+
+    if (starts_with(sql, "select * from")) {
+        return parse_select(sql);
+    }
+
+    if (starts_with(sql, "insert into")) {
+        return parse_insert(sql);
+    }
+
+    set_error(&plan, "지원하지 않는 SQL");
+    return plan;
+}
+
+static Plan parse_select(const char *sql) {
+    const char *prefix = "select * from";
+    Plan plan = {0};
+    char table_name[MAX_TABLE_NAME_SIZE];
+    char *trimmed_table_name;
+
+    snprintf(table_name, sizeof(table_name), "%s", sql + strlen(prefix));
+    trimmed_table_name = trim(table_name);
+    remove_trailing_semicolon(trimmed_table_name);
+    trimmed_table_name = trim(trimmed_table_name);
+
+    if (find_table(trimmed_table_name) == NULL) {
+        set_error(&plan, "존재하지 않는 테이블입니다");
+        return plan;
+    }
+
+    plan.type = QUERY_SELECT;
+    snprintf(plan.table_name, sizeof(plan.table_name), "%s", trimmed_table_name);
+    return plan;
+}
+
+static Plan parse_insert(const char *sql) {
+    const char *prefix = "insert into";
+    Plan plan = {0};
+    char rest[MAX_INPUT_SIZE];
+    char values_text[MAX_INPUT_SIZE];
+    char *values_keyword;
+    char *table_name;
+    char *values;
+    char *token;
+    const TableMetadata *table;
+
+    snprintf(rest, sizeof(rest), "%s", sql + strlen(prefix));
+    values_keyword = strstr(rest, "values");
+
+    if (values_keyword == NULL) {
+        set_error(&plan, "지원하지 않는 SQL");
+        return plan;
+    }
+
+    *values_keyword = '\0';
+    table_name = trim(rest);
+    values = trim(values_keyword + strlen("values"));
+
+    remove_trailing_semicolon(values);
+    values = trim(values);
+
+    if (*values == '(') {
+        values++;
+    }
+
+    values = trim(values);
+    if (strlen(values) > 0 && values[strlen(values) - 1] == ')') {
+        values[strlen(values) - 1] = '\0';
+    }
+
+    values = trim(values);
+
+    table = find_table(table_name);
+    if (table == NULL) {
+        set_error(&plan, "존재하지 않는 테이블입니다");
+        return plan;
+    }
+
+    snprintf(values_text, sizeof(values_text), "%s", values);
+    token = strtok(values_text, ",");
+
+    while (token != NULL && plan.value_count < MAX_VALUES) {
+        char *value = trim(token);
+
+        if (!is_ascii_text(value)) {
+            set_error(&plan, "ASCII 텍스트만 입력할 수 있습니다");
+            return plan;
+        }
+
+        snprintf(plan.values[plan.value_count], sizeof(plan.values[plan.value_count]), "%s", value);
+        plan.value_count++;
+        token = strtok(NULL, ",");
+    }
+
+    if (token != NULL || plan.value_count != table->column_count) {
+        set_error(&plan, "컬럼 개수와 값 개수가 맞지 않습니다");
+        return plan;
+    }
+
+    plan.type = QUERY_INSERT;
+    snprintf(plan.table_name, sizeof(plan.table_name), "%s", table_name);
+    return plan;
+}
+
+static int starts_with(const char *text, const char *prefix) {
+    return strncmp(text, prefix, strlen(prefix)) == 0;
+}
+
+static void set_error(Plan *plan, const char *message) {
+    plan->type = QUERY_INVALID;
+    snprintf(plan->error_message, sizeof(plan->error_message), "%s", message);
+}
+
+static int is_ascii_text(const char *text) {
+    const unsigned char *cursor = (const unsigned char *) text;
+
+    while (*cursor != '\0') {
+        if (*cursor > 127) {
+            return 0;
+        }
+        cursor++;
+    }
+
+    return 1;
+}
+
+static void remove_trailing_semicolon(char *text) {
+    size_t length = strlen(text);
+
+    if (length > 0 && text[length - 1] == ';') {
+        text[length - 1] = '\0';
+    }
+}
+
+static char *trim(char *text) {
+    char *end;
+
+    while (*text == ' ' || *text == '\t' || *text == '\n' || *text == '\r') {
+        text++;
+    }
+
+    if (*text == '\0') {
+        return text;
+    }
+
+    end = text + strlen(text) - 1;
+    while (end > text && (*end == ' ' || *end == '\t' || *end == '\n' || *end == '\r')) {
+        *end = '\0';
+        end--;
+    }
+
+    return text;
+}
