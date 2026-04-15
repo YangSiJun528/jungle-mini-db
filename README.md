@@ -335,18 +335,18 @@ id,name
 
 ## 코드 복잡도 비교
 
-공통 구현 기준으로 다른 B-Tree, B+ Tree SQL 구현들과 코드 규모와 정적 복잡도를 비교했습니다.
 
-| 항목 | 값 |
-| --- | ---: |
-| `.c/.h` 파일 수 | 7 |
-| 전체 줄 수 | 2,671 |
-| 함수 수 | 116 |
-| 순환 복잡도 합계 | 420 |
-| 평균 순환 복잡도 | 3.62 |
-| 최대 순환 복잡도 | 12 |
+| 레포 | 파일(.c/.h) | .c 줄 | .h 줄 | 총 줄 | 함수 | CC 합계 | 평균 CC | 최대 CC |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| `sijun-yang/jungle-mini-db` | 7 (5/2) | 2,466 | 205 | 2,671 | 116 | 420 | 3.62 | 12 (`parser.c:read_integer`) |
+| `Wish-Upon-A-Star/SQL-B-Tree` | 13 (8/5) | 7,163 | 277 | 7,440 | 240 | 2,252 | 9.38 | 97 (`executor.c:load_table_parse_snapshot`) |
+| `KYUJEONGLEE/-WEEK-7-B-tree-index-db` | 22 (15/7) | 6,613 | 452 | 7,065 | 165 | 1,056 | 6.40 | 39 (`tests/test_storage.c:main`) |
+| `whiskend/BPTree_SQL_Engine` | 32 (19/13) | 6,073 | 374 | 6,447 | 219 | 1,069 | 4.88 | 22 (`src/bptree.c:validate_node`) |
+| `LJH098/week7_index` | 17 (11/6) | 4,351 | 365 | 4,716 | 104 | 705 | 6.78 | 38 (`src/tokenizer.c:tokenizer_tokenize_sql`) |
 
-이 수치는 단순히 코드가 짧다는 의미가 아니라, B+ Tree 인덱스의 핵심 흐름을 설명 가능한 크기로 유지했다는 의미로 해석했습니다.
+전체 기준으로 보면 내 프로젝트는 가장 작다. 줄 수는 `Wish-Upon-A-Star/SQL-B-Tree`의 약 36%, `KYUJEONGLEE`의 약 38%, `whiskend`의 약 41%, `LJH098`의 약 57% 수준입니다.
+
+복잡도 합계도 내 프로젝트가 가장 낮다. `Wish-Upon-A-Star/SQL-B-Tree`는 내 프로젝트보다 CC 합계가 약 5.36배 높고, 평균 CC도 9.38로 가장 높다. 특히 `executor.c` 하나에 구현과 분기 처리가 크게 집중되어 있습니다.
 
 * * *
 
