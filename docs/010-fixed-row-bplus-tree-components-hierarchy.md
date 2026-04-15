@@ -1,53 +1,32 @@
 # 고정 길이 Row + B+Tree 적용 후 SQL 처리기 구성 계층화
 
-이 문서는 `docs/002-core-components-hierarchy.md`의 SQL 처리기 계층 구조에 `docs/009-fixed-row-bplus-tree-plan.md`의 고정 길이 row 저장 방식과 B+Tree 인덱스 설계를 추가했을 때의 전체 구조를 정리한다.
+이 문서는 기존 SQL 처리기 계층 구조에 고정 길이 row 저장 방식과 B+Tree 인덱스를 추가했을 때의 전체 구조를 핵심만 정리한다.
 
-핵심 방향은 기존 REPL, 파서, 실행기 흐름은 유지하고, 파일 저장 계층을 64-byte fixed row 기반으로 바꾸며, `WHERE id = ?` 조회만 B+Tree 인덱스 경로로 분기하는 것이다.
+기존의 입력, 파싱, 실행 흐름은 유지한다. 새 설계에서는 저장 단위를 고정 길이 row로 바꾸고, `id` 조건 조회만 B+Tree 인덱스를 통해 빠르게 찾도록 실행 경로를 분리한다.
 
 ## 1. 프로그램 시작 / 인덱스 준비
 
-REPL이 SQL 입력을 받기 전에 테이블 파일과 인덱스 구조를 사용할 수 있는 상태로 준비하는 영역이다. 기존 구조에서는 명시적인 시작 단계가 거의 없었지만, B+Tree 인덱스를 사용하려면 시작 시점에 인덱스 초기화와 재구축 단계가 필요하다.
+SQL 입력을 받기 전에 테이블 데이터와 인덱스를 사용할 수 있는 상태로 준비한다. 기존 구조에는 없던 시작 단계다.
 
-### 1.1 테이블 메타데이터 확인
+### 1.1 테이블 정보 확인
 
-고정된 테이블 이름, 논리 컬럼 목록, CSV 파일 경로, fixed row 크기 정보를 확인한다.
+테이블 이름, 컬럼 정보, 데이터 파일 위치, row 크기 같은 기본 정보를 확인한다.
 
-예시:
+### 1.2 인덱스 초기화
 
-```text
-users -> data/users.csv, row_size = 64
-posts -> data/posts.csv, row_size = 64
-```
+테이블별로 B+Tree 인덱스를 사용할 준비를 한다.
 
-### 1.2 B+Tree wrapper 초기화
+### 1.3 인덱스 재구축
 
-`db_index_init_all()`을 호출해 테이블별 B+Tree 핸들을 준비한다. 실행기와 파서는 외부 라이브러리의 `bplus_tree_*` API를 직접 사용하지 않고, 항상 `db_index.c/.h` wrapper를 통해서만 인덱스에 접근한다.
-
-### 1.3 CSV 기반 인덱스 재구축
-
-프로그램 시작 시 각 CSV 파일을 64-byte 단위로 순차 스캔한다. 각 row의 첫 번째 컬럼인 `id`와 해당 row의 byte offset을 읽어 B+Tree에 등록한다.
-
-예시:
-
-```text
-offset 0   -> id 1
-offset 64  -> id 2
-offset 128 -> id 3
-```
+프로그램 시작 시 데이터 파일을 읽어 각 row의 `id`와 파일 안의 위치를 인덱스에 다시 등록한다. 첫 구현에서는 데이터 파일을 기준 데이터로 보고, 인덱스는 시작 시 재구축한다.
 
 ## 2. REPL SQL 입력 처리
 
-사용자가 터미널에서 SQL을 한 줄씩 입력하고, 입력된 SQL을 파싱과 실행 단계로 넘기는 영역이다. 이 계층은 기존 구조와 거의 동일하게 유지된다.
+사용자가 터미널에서 SQL을 한 줄씩 입력하고, 입력된 SQL을 파싱과 실행 단계로 넘긴다. 이 계층은 기존 구조와 거의 동일하게 유지된다.
 
 ### 2.1 프롬프트 출력
 
-사용자가 SQL을 입력할 수 있도록 REPL 프롬프트를 출력한다.
-
-예시:
-
-```text
-mini-db>
-```
+사용자가 SQL을 입력할 수 있도록 프롬프트를 출력한다.
 
 ### 2.2 SQL 한 줄 읽기
 
@@ -55,287 +34,202 @@ mini-db>
 
 ### 2.3 특수 명령 처리
 
-특수 명령은 마침표(`.`)로 시작한다. 현재 지원되는 명령은 `.exit`이며, 입력값이 `.exit`이면 인덱스 자원을 정리한 뒤 REPL을 종료한다.
+특수 명령을 확인한다. 종료 명령이 입력되면 필요한 자원을 정리한 뒤 프로그램을 종료한다.
 
 ## 3. SQL 파싱
 
-입력된 SQL을 단순한 규칙으로 분석해 실행에 필요한 계획으로 바꾸는 영역이다. 기존 `SELECT`, `INSERT` 파싱에 `WHERE id = ?` 조건 파싱이 추가된다.
+입력된 SQL을 분석해 실행에 필요한 계획으로 바꾼다. 기존 `SELECT`, `INSERT` 파싱에 `id` 조건 조회가 추가된다.
 
 ### 3.1 SQL 타입 판별
 
-SQL이 세미콜론(`;`)으로 끝나는지 먼저 확인한 뒤, 문장이 `SELECT`인지 `INSERT`인지 구분한다.
+입력 문장이 조회인지 삽입인지 구분한다.
 
 ### 3.2 SELECT 전체 조회 파싱
 
-`select * from 테이블;` 형태에서 `select`, `*`, `from`, 테이블 이름, `;`, 입력 끝을 순서대로 확인한다. 이 형태는 인덱스를 사용하지 않고 전체 row를 순차 스캔하는 실행 계획이 된다.
-
-예시:
-
-```sql
-select * from users;
-```
+테이블 전체를 조회하는 문장을 인식한다. 이 경우 인덱스를 사용하지 않고 전체 row를 순차적으로 읽는다.
 
 ### 3.3 SELECT id 조건 조회 파싱
 
-`select * from 테이블 where id = 값;` 형태에서 `where`, `id`, `=`, 정수 값을 추가로 확인한다. 이 형태는 B+Tree 인덱스를 사용하는 실행 계획이 된다.
+`id` 값을 기준으로 특정 row를 조회하는 문장을 인식한다. 이 경우 B+Tree 인덱스를 사용하는 실행 계획이 된다.
 
-예시:
+### 3.4 INSERT 값 파싱
 
-```sql
-select * from users where id = 101;
-```
-
-### 3.4 INSERT 테이블명과 값 목록 추출
-
-`insert into 테이블 values (...);` 형태에서 `insert`, `into`, 테이블 이름, `values`, 값 목록, `;`, 입력 끝을 순서대로 확인한다. 첫 번째 값은 B+Tree key로 사용할 `id`로 해석한다.
-
-예시:
-
-```sql
-insert into users values (101, kim);
-```
+삽입할 테이블과 값 목록을 추출한다. 첫 번째 값은 인덱스 key가 되는 `id`로 사용한다.
 
 ## 4. 실행
 
-파싱된 계획을 기준으로 `SELECT` 또는 `INSERT` 동작을 실행하는 영역이다. 이 계층에서 전체 조회 경로, id 조건 조회 경로, row 추가 경로가 분기된다.
+파싱된 계획에 따라 실제 조회 또는 삽입을 수행한다. 전체 조회, `id` 조건 조회, 삽입이 서로 다른 흐름으로 분리된다.
 
 ### 4.1 실행 분기
 
-파싱 결과의 타입과 조건을 보고 실행 함수를 선택한다.
+파싱 결과를 보고 어떤 실행 흐름을 사용할지 결정한다.
 
 ```text
-SELECT without WHERE id -> fixed row 전체 스캔
-SELECT with WHERE id    -> B+Tree index 조회
-INSERT                  -> fixed row append + index put
+전체 조회 -> 데이터 파일 순차 스캔
+id 조건 조회 -> B+Tree 인덱스 조회
+삽입 -> 고정 길이 row 추가 후 인덱스 갱신
 ```
 
 ### 4.2 SELECT 전체 조회
 
-테이블 CSV 파일을 `0, 64, 128...` offset 순서로 읽고, 각 fixed row를 논리 row로 decode해 출력한다. 이 경로는 인덱스를 사용하지 않는다.
+데이터 파일을 고정 길이 row 단위로 처음부터 끝까지 읽고, 사용자에게 보여줄 논리 데이터만 출력한다.
 
 ### 4.3 SELECT id 조건 조회
 
-`WHERE id = ?` 조건의 id 값을 B+Tree key로 사용한다. `db_index_get()`으로 row offset을 찾고, 해당 위치로 `fseek()`한 뒤 정확히 64 bytes만 읽어 결과를 출력한다.
+`id` 값을 B+Tree 인덱스에서 찾는다. 인덱스가 알려준 파일 위치로 이동해 해당 row만 읽고 출력한다.
 
-인덱스에서 id를 찾지 못하면 에러가 아니라 빈 결과로 처리한다.
+찾는 `id`가 없으면 빈 결과로 처리한다.
 
 ### 4.4 INSERT 행 추가
 
-INSERT 값 목록에서 첫 번째 컬럼인 `id`를 추출한다. 먼저 B+Tree로 중복 id 여부를 확인하고, 중복이 없으면 논리 row를 64-byte fixed row로 encoding한 뒤 파일 끝에 append한다.
-
-파일 쓰기가 성공하면 새 row의 byte offset을 `db_index_put()`으로 등록한다.
+삽입할 row의 `id`가 이미 있는지 확인한다. 중복이 없으면 row를 고정 길이 형식으로 만들어 파일 끝에 추가하고, 새 row의 위치를 인덱스에 등록한다.
 
 ## 5. 테이블 메타데이터 / 고정 길이 파일 저장
 
-테이블 이름, 컬럼 목록, CSV 파일 경로, fixed row encoding 규칙을 연결하고 파일을 읽거나 쓰는 영역이다. 기존 CSV 줄 단위 저장은 64-byte fixed row 저장으로 바뀐다.
+테이블 정보와 실제 데이터 파일을 연결하고, row를 고정된 크기로 읽고 쓰는 영역이다. 기존 줄 단위 CSV 저장 방식에서 고정 길이 row 저장 방식으로 바뀐다.
 
 ### 5.1 테이블 이름 매핑
 
-테이블 이름을 컬럼 목록과 CSV 파일 경로가 들어 있는 메타데이터로 변환한다.
+테이블 이름을 해당 테이블의 컬럼 정보와 데이터 파일로 연결한다.
 
-예시:
+### 5.2 고정 길이 row 저장
 
-```text
-users -> data/users.csv
-```
+각 row는 항상 같은 크기로 저장한다. 실제 값이 row 크기보다 짧으면 내부 padding으로 남은 공간을 채운다.
 
-### 5.2 64-byte fixed row encoding
+### 5.3 논리 row 변환
 
-논리 값들을 CSV 형태로 만든 뒤 padding 필드를 추가해 줄바꿈 전까지 63 bytes를 채우고, 마지막 1 byte는 `\n`으로 둔다.
+파일에 저장된 고정 길이 row에서 내부 padding을 제외하고, 사용자에게 필요한 컬럼 값만 출력한다.
 
-예시:
+### 5.4 위치 기반 읽기/쓰기
 
-```text
-101,kim,_______________________________________________________\n
-```
-
-사용자에게는 padding 컬럼을 보여주지 않는다. padding은 파일 안에서 fixed row 크기를 맞추기 위한 내부 필드로만 사용한다.
-
-### 5.3 fixed row decoding
-
-파일에서 64 bytes를 읽은 뒤 padding 필드를 제거하고 논리 컬럼만 SELECT 결과로 출력한다.
-
-### 5.4 offset 기반 읽기/쓰기
-
-전체 조회는 파일 크기를 기준으로 64-byte 간격을 순차 스캔한다. id 조건 조회는 B+Tree가 반환한 offset으로 바로 이동해 단일 row만 읽는다. INSERT는 append 전 `ftell()`로 새 row의 시작 offset을 얻는다.
+전체 조회는 row 크기만큼 순서대로 이동하며 읽는다. `id` 조건 조회는 인덱스가 알려준 위치로 바로 이동해 하나의 row만 읽는다. 삽입은 파일 끝에 새 row를 추가한다.
 
 ### 5.5 row 크기 검증
 
-논리 row와 padding을 포함한 결과가 64 bytes에 들어가지 않으면 INSERT를 거부한다.
+삽입하려는 값이 고정 row 크기에 들어가지 않으면 저장하지 않고 오류로 처리한다.
 
-예시 출력:
+## 6. B+Tree 인덱스 계층
 
-```text
-row size를 초과했습니다
-```
-
-## 6. B+Tree 인덱스 wrapper
-
-외부 B+Tree 라이브러리와 미니 DB 실행기를 분리하는 영역이다. 라이브러리 타입과 세부 API는 이 계층 안에 숨긴다.
+`id` 값을 기준으로 row의 파일 위치를 찾는 보조 구조다. 실행 계층은 인덱스를 통해 전체 파일을 읽지 않고 필요한 row에 접근할 수 있다.
 
 ### 6.1 테이블별 인덱스 관리
 
-`users`, `posts` 같은 테이블마다 별도의 B+Tree 인스턴스 또는 인덱스 파일을 관리한다.
+각 테이블은 자기 데이터에 맞는 인덱스를 가진다.
 
-### 6.2 공개 API 제한
+### 6.2 id와 row 위치 연결
 
-실행기는 다음과 같은 작은 API만 사용한다.
+인덱스는 `id`와 row의 파일 위치를 연결한다.
 
-```c
-int db_index_init_all(void);
-void db_index_shutdown_all(void);
-int db_index_rebuild_table(const TableMetadata *table);
-int db_index_put(const char *table_name, int id, long row_offset);
-int db_index_get(const char *table_name, int id, long *row_offset);
-```
+### 6.3 조회 경로 제공
 
-### 6.3 offset 저장 규칙
+`id` 조건 조회가 들어오면 인덱스에서 row 위치를 찾고, 실행 계층은 그 위치의 row만 읽는다.
 
-`begeekmyfriend/bplustree`는 `data == 0`을 delete로 처리한다. 실제 파일 첫 row의 offset은 `0`일 수 있으므로 wrapper는 B+Tree에 실제 offset 대신 `offset + 1`을 저장한다.
+### 6.4 삽입 후 갱신
 
-읽을 때는 `stored_offset - 1`로 실제 offset을 복원한다.
+새 row가 삽입되면 해당 row의 `id`와 위치를 인덱스에 추가한다.
 
-### 6.4 인덱스 재구축
+## 7. B+Tree 구현 영역
 
-첫 구현에서는 CSV 파일을 기준 데이터로 보고, 프로그램 시작 시 CSV에서 인덱스를 다시 만든다. 이렇게 하면 CSV 파일과 인덱스 파일의 sync 문제가 생겼을 때도 기준 데이터를 명확하게 유지할 수 있다.
+B+Tree가 실제로 key를 정렬된 상태로 유지하고, 삽입과 검색이 빠르게 동작하도록 관리하는 영역이다. SQL 처리기의 다른 계층은 이 내부 구현을 직접 알 필요가 없다.
 
-## 7. vendored B+Tree 라이브러리
+### 7.1 정렬된 key 관리
 
-실제 B+Tree 삽입, 검색, split, disk I/O를 담당하는 외부 구현 영역이다. 미니 DB의 다른 계층은 이 구현에 직접 의존하지 않는다.
+`id` 값을 정렬된 상태로 유지해 검색 범위를 빠르게 좁힌다.
 
-### 7.1 vendoring 위치
+### 7.2 균형 유지
 
-`begeekmyfriend/bplustree`의 `disk-io` 브랜치를 기준으로 최소 파일을 `third_party/` 아래에 포함한다.
+데이터가 많아져도 트리가 한쪽으로 치우치지 않도록 유지한다.
 
-예시:
+### 7.3 검색 결과 반환
 
-```text
-third_party/bplustree/bplustree.c
-third_party/bplustree/bplustree.h
-third_party/bplustree/LICENSE
-```
-
-### 7.2 POSIX disk I/O
-
-라이브러리는 `pread`, `pwrite`, `open`, `fsync` 같은 POSIX API를 사용한다. macOS와 Linux 개발 환경에서는 사용할 수 있지만, Windows 빌드는 별도 대응이 필요하다.
-
-### 7.3 빌드 연결
-
-`CMakeLists.txt`는 vendored B+Tree 소스와 `db_index.c` wrapper를 빌드 대상에 포함한다.
+검색한 `id`에 연결된 row 위치를 반환한다.
 
 ## 전체 계층 구조
 
 ```text
 SQL 처리기
 ├── 1. 프로그램 시작 / 인덱스 준비 [신규]
-│   ├── 1.1 테이블 메타데이터 확인 [신규]
-│   ├── 1.2 B+Tree wrapper 초기화 [신규]
-│   └── 1.3 CSV 기반 인덱스 재구축 [신규]
+│   ├── 1.1 테이블 정보 확인 [신규]
+│   ├── 1.2 인덱스 초기화 [신규]
+│   └── 1.3 인덱스 재구축 [신규]
 ├── 2. REPL SQL 입력 처리
 │   ├── 2.1 프롬프트 출력
 │   ├── 2.2 SQL 한 줄 읽기
-│   └── 2.3 특수 명령 처리 [변경: 종료 시 인덱스 자원 정리]
+│   └── 2.3 특수 명령 처리 [변경: 종료 시 자원 정리]
 ├── 3. SQL 파싱
 │   ├── 3.1 SQL 타입 판별
 │   ├── 3.2 SELECT 전체 조회 파싱
 │   ├── 3.3 SELECT id 조건 조회 파싱 [신규]
-│   └── 3.4 INSERT 테이블명과 값 목록 추출 [변경: 첫 번째 값을 id key로 사용]
+│   └── 3.4 INSERT 값 파싱 [변경: 첫 번째 값을 id로 사용]
 ├── 4. 실행
 │   ├── 4.1 실행 분기
-│   ├── 4.2 SELECT 전체 조회 [변경: 64-byte 단위 스캔]
+│   ├── 4.2 SELECT 전체 조회 [변경: 고정 길이 row 단위 스캔]
 │   ├── 4.3 SELECT id 조건 조회 [신규]
-│   └── 4.4 INSERT 행 추가 [변경: fixed row append + index put]
+│   └── 4.4 INSERT 행 추가 [변경: row 추가 후 인덱스 갱신]
 ├── 5. 테이블 메타데이터 / 고정 길이 파일 저장 [변경]
 │   ├── 5.1 테이블 이름 매핑
-│   ├── 5.2 64-byte fixed row encoding [신규]
-│   ├── 5.3 fixed row decoding [신규]
-│   ├── 5.4 offset 기반 읽기/쓰기 [신규]
+│   ├── 5.2 고정 길이 row 저장 [신규]
+│   ├── 5.3 논리 row 변환 [신규]
+│   ├── 5.4 위치 기반 읽기/쓰기 [신규]
 │   └── 5.5 row 크기 검증 [신규]
-├── 6. B+Tree 인덱스 wrapper [신규]
+├── 6. B+Tree 인덱스 계층 [신규]
 │   ├── 6.1 테이블별 인덱스 관리 [신규]
-│   ├── 6.2 공개 API 제한 [신규]
-│   ├── 6.3 offset 저장 규칙 [신규]
-│   └── 6.4 인덱스 재구축 [신규]
-└── 7. vendored B+Tree 라이브러리 [신규]
-    ├── 7.1 vendoring 위치 [신규]
-    ├── 7.2 POSIX disk I/O [신규]
-    └── 7.3 빌드 연결 [신규]
+│   ├── 6.2 id와 row 위치 연결 [신규]
+│   ├── 6.3 조회 경로 제공 [신규]
+│   └── 6.4 삽입 후 갱신 [신규]
+└── 7. B+Tree 구현 영역 [신규]
+    ├── 7.1 정렬된 key 관리 [신규]
+    ├── 7.2 균형 유지 [신규]
+    └── 7.3 검색 결과 반환 [신규]
 ```
 
-## 시작 흐름
+## 주요 흐름
+
+### 시작 흐름
 
 ```text
 프로그램 시작
--> 테이블 메타데이터 확인
--> B+Tree wrapper 초기화
--> CSV 파일을 64-byte row 단위로 스캔
--> 각 row의 id와 offset을 B+Tree에 등록
--> REPL 프롬프트 출력
+-> 테이블 정보 확인
+-> 인덱스 초기화
+-> 데이터 파일을 읽어 id와 row 위치를 인덱스에 등록
+-> SQL 입력 대기
 ```
 
-## SELECT 전체 조회 흐름
+### 전체 조회 흐름
 
 ```text
-REPL 프롬프트 출력
--> SQL 한 줄 읽기
--> 특수 명령 처리
--> SELECT 전체 조회 파싱
--> 실행 분기
--> CSV 파일을 64-byte 단위로 순차 스캔
--> fixed row decoding
--> padding 제외 후 논리 컬럼과 row 출력
+SQL 입력
+-> 전체 조회로 파싱
+-> 데이터 파일을 고정 길이 row 단위로 순차 읽기
+-> 내부 padding을 제외한 논리 데이터 출력
 ```
 
-## SELECT id 조건 조회 흐름
+### id 조건 조회 흐름
 
 ```text
-REPL 프롬프트 출력
--> SQL 한 줄 읽기
--> 특수 명령 처리
--> SELECT id 조건 조회 파싱
--> 실행 분기
--> db_index_get(table, id, &offset)
--> B+Tree wrapper가 stored_offset - 1로 실제 offset 복원
--> fseek(table_path, offset, SEEK_SET)
--> 64 bytes 읽기
--> fixed row decoding
--> padding 제외 후 논리 컬럼과 row 출력
+SQL 입력
+-> id 조건 조회로 파싱
+-> B+Tree 인덱스에서 id 검색
+-> 찾은 위치의 row만 읽기
+-> 내부 padding을 제외한 논리 데이터 출력
 ```
 
-## INSERT 흐름
+### 삽입 흐름
 
 ```text
-REPL 프롬프트 출력
--> SQL 한 줄 읽기
--> 특수 명령 처리
--> INSERT 테이블명과 값 목록 추출
--> 첫 번째 값을 id로 해석
--> db_index_get()으로 중복 id 확인
--> logical row를 64-byte fixed row로 encoding
--> ftell()로 append offset 확인
--> CSV 파일 끝에 fixed row 쓰기
--> db_index_put(table, id, offset)
--> B+Tree wrapper가 offset + 1 저장
+SQL 입력
+-> 삽입으로 파싱
+-> id 중복 확인
+-> 값을 고정 길이 row로 변환
+-> 데이터 파일 끝에 row 추가
+-> id와 row 위치를 인덱스에 등록
 ```
 
-## 계층 간 의존 방향
+## 핵심 변화 요약
 
-```text
-REPL
--> Parser
--> Executor
--> Table Storage
--> db_index wrapper
--> vendored B+Tree library
-```
-
-파서와 실행기는 B+Tree 라이브러리의 내부 타입을 알지 않는다. 실행기는 `WHERE id = ?` 조건일 때만 `db_index` wrapper를 호출하고, 전체 조회는 고정 길이 파일 저장 계층만 사용한다.
-
-## 기존 구조 대비 핵심 변화
-
-- REPL 입력 처리 계층은 거의 그대로 유지된다.
-- SQL 파싱 계층에 `WHERE id = ?` 조건 파싱이 추가된다.
-- 실행 계층은 전체 조회와 id 조건 조회를 분리한다.
-- CSV 저장 계층은 줄 단위 읽기/쓰기에서 64-byte fixed row 읽기/쓰기로 바뀐다.
-- `id -> byte offset` 매핑을 담당하는 B+Tree 인덱스 wrapper 계층이 추가된다.
-- 외부 B+Tree 구현은 `third_party/`에 vendoring하고, 직접 의존은 wrapper 안으로 제한한다.
+- 시작 시 인덱스를 준비하고 재구축하는 단계가 추가된다.
+- `id` 조건 조회를 파싱하고 실행하는 흐름이 추가된다.
+- 전체 조회는 고정 길이 row를 순차적으로 읽는다.
+- `id` 조건 조회는 B+Tree 인덱스로 row 위치를 찾은 뒤 해당 row만 읽는다.
+- 삽입은 데이터 파일에 row를 추가한 뒤 인덱스를 함께 갱신한다.
+- 파일 저장 방식은 줄 단위 저장에서 고정 길이 row 저장으로 바뀐다.
