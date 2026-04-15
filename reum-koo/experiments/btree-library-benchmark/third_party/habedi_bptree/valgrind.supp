@@ -1,0 +1,8 @@
+# Suppressions for Valgrind
+# Suppressions for glibc functions
+{
+   glibc_strdup_suppression
+   Memcheck:Leak
+   fun:strdup
+   obj:/lib/x86_64-linux-gnu/libc.so.6
+}
