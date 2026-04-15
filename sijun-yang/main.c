@@ -66,6 +66,7 @@ static int run_repl(void) {
 
         /* 2.1 프롬프트 출력 */
         printf("mini-db> ");
+        fflush(stdout);
         if (fgets(input, sizeof(input), stdin) == NULL) {
             printf("\n");
             return 0;

@@ -37,7 +37,8 @@ cmake --build cmake-build-debug
 - INSERT SQL로 적재하지 않고, fixed-row CSV와 B+Tree index를 미리 만들어둔다.
 - `id` 기준 SELECT는 미니 DB의 B+Tree 인덱스 경로를 사용한다.
 - `name` 기준 SELECT는 fixed-row 데이터 파일을 선형 탐색한다.
-- 벤치마크 측정 구간에서는 SELECT만 수행한다.
+- 미니 DB 시작 시 수행되는 index validation 시간과, 시작 이후 SELECT 실행 시간을 분리해서 출력한다.
+- `indexed id SELECT after startup` 항목만 실제 B+Tree 조회 시간이다.
 
 스크립트는 Python 3 표준 라이브러리만 사용한다. venv나 패키지 설치가 필요 없다.
 
@@ -58,6 +59,8 @@ cmake --build cmake-build-debug
 ```bash
 ./scripts/benchmark_bplus_tree_index.py --select-only
 ```
+
+`--select-only`에서도 미니 DB 프로세스 시작 시 기존 B+Tree index와 CSV의 정합성 검증이 먼저 수행된다. 이 시간은 `mini DB startup/index validation`으로 따로 출력되며, B+Tree 조회 시간에는 포함하지 않는다.
 
 결과를 JSON으로 저장:
 
