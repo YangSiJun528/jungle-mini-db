@@ -13,17 +13,17 @@ typedef struct {
     struct bplus_tree *tree;
 } IndexHandle;
 
-/* 파일 안에서만 사용: 테이블별 B+Tree 라이브러리 핸들을 관리하는 함수 목록이다. */
+/* 내부 구현: 공개 인덱스 흐름을 구성하는 private 함수 목록이다. */
+static int rebuild_index_from_data_file(IndexHandle *handle, char *error_message, size_t error_size);
+static int validate_index_against_data(IndexHandle *handle, char *error_message, size_t error_size);
+static int read_data_row(FILE *file, const TableMetadata *table, long offset, char fixed_row[ROW_SIZE]);
+static int extract_id_from_fixed_row(const char fixed_row[ROW_SIZE], int *id);
 static IndexHandle *find_index_handle(const char *table_name);
 static IndexHandle *ensure_index_handle(const TableMetadata *table);
 static int ensure_data_file(const TableMetadata *table, char *error_message, size_t error_size);
 static int init_tree(IndexHandle *handle, char *error_message, size_t error_size);
 static int index_files_exist(const TableMetadata *table);
 static void remove_index_files(const TableMetadata *table);
-static int validate_index_against_data(IndexHandle *handle, char *error_message, size_t error_size);
-static int rebuild_index_from_data_file(IndexHandle *handle, char *error_message, size_t error_size);
-static int read_data_row(FILE *file, const TableMetadata *table, long offset, char fixed_row[ROW_SIZE]);
-static int extract_id_from_fixed_row(const char fixed_row[ROW_SIZE], int *id);
 static int parse_int_text(const char *text, int *value);
 static long get_file_size(FILE *file);
 static long encode_offset_for_index(long offset);
@@ -33,7 +33,7 @@ static void set_error(char *error_message, size_t error_size, const char *messag
 static IndexHandle INDEX_HANDLES[MAX_VALUES];
 static int INDEX_HANDLE_COUNT = 0;
 
-/* 인덱스 준비: 외부 B+Tree 파일을 열고, 없거나 불일치하면 데이터 파일 기준으로 복구한다. */
+/* 1.2/1.3 인덱스 파일 열기와 상태 확인: 테이블별 B+Tree를 준비하고 필요하면 복구한다. */
 int db_index_open_table(const TableMetadata *table, char *error_message, size_t error_size) {
     IndexHandle *handle;
     int validate_result;
@@ -74,7 +74,7 @@ int db_index_open_table(const TableMetadata *table, char *error_message, size_t 
     return rebuild_index_from_data_file(handle, error_message, error_size);
 }
 
-/* 종료 정리: 외부 B+Tree가 boot 파일과 데이터 파일을 flush하도록 닫는다. */
+/* 2.3 특수 명령 처리: 종료 시 열린 B+Tree 인덱스 자원을 정리한다. */
 void db_index_shutdown_all(void) {
     for (int i = 0; i < INDEX_HANDLE_COUNT; i++) {
         if (INDEX_HANDLES[i].tree != NULL) {
@@ -87,7 +87,7 @@ void db_index_shutdown_all(void) {
     INDEX_HANDLE_COUNT = 0;
 }
 
-/* B+Tree 조회: id에 연결된 fixed row byte offset을 반환한다. */
+/* 6.3 조회 경로 제공: id key로 B+Tree를 검색해 fixed row byte offset을 반환한다. */
 int db_index_get(const char *table_name, int id, RowLocation *location) {
     IndexHandle *handle = find_index_handle(table_name);
     long stored_offset;
@@ -109,7 +109,7 @@ int db_index_get(const char *table_name, int id, RowLocation *location) {
     return 1;
 }
 
-/* B+Tree 삽입: 라이브러리 특성상 실제 offset 대신 offset + 1을 저장한다. */
+/* 6.4 삽입 후 갱신: 새 id와 row 위치를 B+Tree 인덱스에 등록한다. */
 int db_index_put(const char *table_name, int id, RowLocation location) {
     IndexHandle *handle = find_index_handle(table_name);
     long stored_offset;
@@ -127,121 +127,7 @@ int db_index_put(const char *table_name, int id, RowLocation location) {
     return bplus_tree_put(handle->tree, id, stored_offset) == 0 ? 1 : -1;
 }
 
-static IndexHandle *find_index_handle(const char *table_name) {
-    for (int i = 0; i < INDEX_HANDLE_COUNT; i++) {
-        if (strcmp(INDEX_HANDLES[i].table->name, table_name) == 0) {
-            return &INDEX_HANDLES[i];
-        }
-    }
-
-    return NULL;
-}
-
-static IndexHandle *ensure_index_handle(const TableMetadata *table) {
-    IndexHandle *handle = find_index_handle(table->name);
-
-    if (handle != NULL) {
-        return handle;
-    }
-
-    if (INDEX_HANDLE_COUNT >= MAX_VALUES) {
-        return NULL;
-    }
-
-    handle = &INDEX_HANDLES[INDEX_HANDLE_COUNT];
-    handle->table = table;
-    handle->tree = NULL;
-    INDEX_HANDLE_COUNT++;
-    return handle;
-}
-
-static int ensure_data_file(const TableMetadata *table, char *error_message, size_t error_size) {
-    FILE *file = fopen(table->csv_file_path, "ab");
-
-    if (file == NULL) {
-        set_error(error_message, error_size, "CSV 파일을 열 수 없습니다");
-        return 0;
-    }
-
-    fclose(file);
-    return 1;
-}
-
-static int init_tree(IndexHandle *handle, char *error_message, size_t error_size) {
-    handle->tree = bplus_tree_init((char *) handle->table->index_file_path, BPLUS_BLOCK_SIZE);
-    if (handle->tree == NULL) {
-        set_error(error_message, error_size, "인덱스를 준비할 수 없습니다");
-        return 0;
-    }
-
-    return 1;
-}
-
-static int index_files_exist(const TableMetadata *table) {
-    char boot_path[MAX_INPUT_SIZE];
-    FILE *index_file;
-    FILE *boot_file;
-
-    snprintf(boot_path, sizeof(boot_path), "%s.boot", table->index_file_path);
-    index_file = fopen(table->index_file_path, "rb");
-    boot_file = fopen(boot_path, "rb");
-
-    if (index_file != NULL) {
-        fclose(index_file);
-    }
-    if (boot_file != NULL) {
-        fclose(boot_file);
-    }
-
-    return index_file != NULL && boot_file != NULL;
-}
-
-static void remove_index_files(const TableMetadata *table) {
-    char boot_path[MAX_INPUT_SIZE];
-
-    snprintf(boot_path, sizeof(boot_path), "%s.boot", table->index_file_path);
-    remove(table->index_file_path);
-    remove(boot_path);
-}
-
-static int validate_index_against_data(IndexHandle *handle, char *error_message, size_t error_size) {
-    FILE *file = fopen(handle->table->csv_file_path, "rb");
-    long file_size;
-
-    if (file == NULL) {
-        set_error(error_message, error_size, "CSV 파일을 열 수 없습니다");
-        return -1;
-    }
-
-    file_size = get_file_size(file);
-    if (file_size < 0 || file_size % handle->table->row_size != 0) {
-        fclose(file);
-        set_error(error_message, error_size, "데이터 파일이 올바르지 않습니다");
-        return -1;
-    }
-
-    for (long offset = 0; offset < file_size; offset += handle->table->row_size) {
-        char fixed_row[ROW_SIZE];
-        int id;
-        long stored_offset;
-
-        if (!read_data_row(file, handle->table, offset, fixed_row) || !extract_id_from_fixed_row(fixed_row, &id)) {
-            fclose(file);
-            set_error(error_message, error_size, "데이터 파일이 올바르지 않습니다");
-            return -1;
-        }
-
-        stored_offset = bplus_tree_get(handle->tree, id);
-        if (stored_offset < 0 || decode_offset_from_index(stored_offset) != offset) {
-            fclose(file);
-            return 0;
-        }
-    }
-
-    fclose(file);
-    return 1;
-}
-
+/* 1.3 인덱스 상태 확인 / 필요 시 복구: 데이터 파일 기준으로 B+Tree를 다시 만든다. */
 static int rebuild_index_from_data_file(IndexHandle *handle, char *error_message, size_t error_size) {
     FILE *file;
     long file_size;
@@ -286,6 +172,46 @@ static int rebuild_index_from_data_file(IndexHandle *handle, char *error_message
     return 0;
 }
 
+/* 1.3 인덱스 상태 확인: 인덱스의 id -> offset 매핑이 데이터 파일과 맞는지 확인한다. */
+static int validate_index_against_data(IndexHandle *handle, char *error_message, size_t error_size) {
+    FILE *file = fopen(handle->table->csv_file_path, "rb");
+    long file_size;
+
+    if (file == NULL) {
+        set_error(error_message, error_size, "CSV 파일을 열 수 없습니다");
+        return -1;
+    }
+
+    file_size = get_file_size(file);
+    if (file_size < 0 || file_size % handle->table->row_size != 0) {
+        fclose(file);
+        set_error(error_message, error_size, "데이터 파일이 올바르지 않습니다");
+        return -1;
+    }
+
+    for (long offset = 0; offset < file_size; offset += handle->table->row_size) {
+        char fixed_row[ROW_SIZE];
+        int id;
+        long stored_offset;
+
+        if (!read_data_row(file, handle->table, offset, fixed_row) || !extract_id_from_fixed_row(fixed_row, &id)) {
+            fclose(file);
+            set_error(error_message, error_size, "데이터 파일이 올바르지 않습니다");
+            return -1;
+        }
+
+        stored_offset = bplus_tree_get(handle->tree, id);
+        if (stored_offset < 0 || decode_offset_from_index(stored_offset) != offset) {
+            fclose(file);
+            return 0;
+        }
+    }
+
+    fclose(file);
+    return 1;
+}
+
+/* 5.4 위치 기반 읽기/쓰기: 지정한 byte offset에서 fixed row 하나를 읽는다. */
 static int read_data_row(FILE *file, const TableMetadata *table, long offset, char fixed_row[ROW_SIZE]) {
     if (fseek(file, offset, SEEK_SET) != 0) {
         return 0;
@@ -298,6 +224,7 @@ static int read_data_row(FILE *file, const TableMetadata *table, long offset, ch
     return fixed_row[ROW_DATA_SIZE] == '\n';
 }
 
+/* 5.3 논리 row 변환: fixed row에서 padding을 제거하고 첫 번째 컬럼 id를 추출한다. */
 static int extract_id_from_fixed_row(const char fixed_row[ROW_SIZE], int *id) {
     char logical_row[ROW_SIZE];
     int end = ROW_DATA_SIZE - 1;
@@ -328,6 +255,90 @@ static int extract_id_from_fixed_row(const char fixed_row[ROW_SIZE], int *id) {
     return parse_int_text(logical_row, id);
 }
 
+/* 내부 구현: 테이블 이름에 해당하는 열린 인덱스 핸들을 찾는다. */
+static IndexHandle *find_index_handle(const char *table_name) {
+    for (int i = 0; i < INDEX_HANDLE_COUNT; i++) {
+        if (strcmp(INDEX_HANDLES[i].table->name, table_name) == 0) {
+            return &INDEX_HANDLES[i];
+        }
+    }
+
+    return NULL;
+}
+
+/* 내부 구현: 테이블 인덱스 핸들을 재사용하거나 새 슬롯에 등록한다. */
+static IndexHandle *ensure_index_handle(const TableMetadata *table) {
+    IndexHandle *handle = find_index_handle(table->name);
+
+    if (handle != NULL) {
+        return handle;
+    }
+
+    if (INDEX_HANDLE_COUNT >= MAX_VALUES) {
+        return NULL;
+    }
+
+    handle = &INDEX_HANDLES[INDEX_HANDLE_COUNT];
+    handle->table = table;
+    handle->tree = NULL;
+    INDEX_HANDLE_COUNT++;
+    return handle;
+}
+
+/* 내부 구현: 빈 테이블도 시작할 수 있도록 데이터 파일을 준비한다. */
+static int ensure_data_file(const TableMetadata *table, char *error_message, size_t error_size) {
+    FILE *file = fopen(table->csv_file_path, "ab");
+
+    if (file == NULL) {
+        set_error(error_message, error_size, "CSV 파일을 열 수 없습니다");
+        return 0;
+    }
+
+    fclose(file);
+    return 1;
+}
+
+/* 내부 구현: thirdparty B+Tree 파일 핸들을 연다. */
+static int init_tree(IndexHandle *handle, char *error_message, size_t error_size) {
+    handle->tree = bplus_tree_init((char *) handle->table->index_file_path, BPLUS_BLOCK_SIZE);
+    if (handle->tree == NULL) {
+        set_error(error_message, error_size, "인덱스를 준비할 수 없습니다");
+        return 0;
+    }
+
+    return 1;
+}
+
+/* 내부 구현: thirdparty B+Tree가 사용하는 본 파일과 boot 파일이 모두 있는지 확인한다. */
+static int index_files_exist(const TableMetadata *table) {
+    char boot_path[MAX_INPUT_SIZE];
+    FILE *index_file;
+    FILE *boot_file;
+
+    snprintf(boot_path, sizeof(boot_path), "%s.boot", table->index_file_path);
+    index_file = fopen(table->index_file_path, "rb");
+    boot_file = fopen(boot_path, "rb");
+
+    if (index_file != NULL) {
+        fclose(index_file);
+    }
+    if (boot_file != NULL) {
+        fclose(boot_file);
+    }
+
+    return index_file != NULL && boot_file != NULL;
+}
+
+/* 내부 구현: 복구 전에 기존 B+Tree 파일 묶음을 지운다. */
+static void remove_index_files(const TableMetadata *table) {
+    char boot_path[MAX_INPUT_SIZE];
+
+    snprintf(boot_path, sizeof(boot_path), "%s.boot", table->index_file_path);
+    remove(table->index_file_path);
+    remove(boot_path);
+}
+
+/* 내부 구현: id 문자열을 B+Tree key로 쓸 정수로 변환한다. */
 static int parse_int_text(const char *text, int *value) {
     char *end;
     long parsed;
@@ -345,6 +356,7 @@ static int parse_int_text(const char *text, int *value) {
     return 1;
 }
 
+/* 내부 구현: 현재 파일 크기를 byte 단위로 얻는다. */
 static long get_file_size(FILE *file) {
     long file_size;
 
@@ -360,6 +372,7 @@ static long get_file_size(FILE *file) {
     return file_size;
 }
 
+/* 내부 구현: 라이브러리에서 0은 delete 의미이므로 실제 offset에 1을 더해 저장한다. */
 static long encode_offset_for_index(long offset) {
     if (offset == LONG_MAX) {
         return -1;
@@ -368,6 +381,7 @@ static long encode_offset_for_index(long offset) {
     return offset + 1;
 }
 
+/* 내부 구현: B+Tree에 저장한 offset + 1 값을 실제 byte offset으로 되돌린다. */
 static long decode_offset_from_index(long stored_offset) {
     if (stored_offset <= 0) {
         return -1;
@@ -376,6 +390,7 @@ static long decode_offset_from_index(long stored_offset) {
     return stored_offset - 1;
 }
 
+/* 내부 구현: 호출자에게 전달할 오류 메시지를 고정 크기 버퍼에 복사한다. */
 static void set_error(char *error_message, size_t error_size, const char *message) {
     if (error_size == 0) {
         return;

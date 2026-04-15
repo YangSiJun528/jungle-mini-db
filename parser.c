@@ -11,7 +11,7 @@ typedef struct {
     Plan error_plan;
 } Parser;
 
-/* 파일 안에서만 사용: 아래 핵심 함수들이 호출하는 내부 함수 목록이다. */
+/* 내부 구현: SQL 파싱 흐름을 구성하는 private 함수 목록이다. */
 static Plan parse_select(const char *sql);
 static Plan parse_insert(const char *sql);
 static Parser make_parser(const char *sql);
@@ -31,7 +31,7 @@ static void set_parser_error(Parser *parser, const char *message);
 static int is_ascii_text(const char *text);
 static char *trim(char *text);
 
-/* 2.1 SQL 타입 판별: SELECT와 INSERT 중 어떤 문장인지 구분한다. */
+/* 3.1 SQL 타입 판별: SELECT와 INSERT 중 어떤 문장인지 구분한다. */
 Plan parse_sql(const char *sql) {
     Plan plan = {0};
     Parser parser = make_parser(sql);
@@ -44,12 +44,10 @@ Plan parse_sql(const char *sql) {
     }
 
     if (starts_with(parser.cursor, "select")) {
-        /* 흐름: 2.1 SQL 타입 판별 -> 2.2 SELECT 테이블명 추출 */
         return parse_select(parser.cursor);
     }
 
     if (starts_with(parser.cursor, "insert")) {
-        /* 흐름: 2.1 SQL 타입 판별 -> 2.3 INSERT 테이블명과 값 목록 추출 */
         return parse_insert(parser.cursor);
     }
 
@@ -57,7 +55,7 @@ Plan parse_sql(const char *sql) {
     return plan;
 }
 
-/* 2.2 SELECT 테이블명 추출: `select * from 테이블;`에서 테이블 이름을 뽑아낸다. */
+/* 3.2/3.3 SELECT 조회 파싱: 전체 조회와 where id 조건 조회 계획을 만든다. */
 static Plan parse_select(const char *sql) {
     Parser parser = make_parser(sql);
     char table_name[MAX_TABLE_NAME_SIZE];
@@ -104,7 +102,7 @@ static Plan parse_select(const char *sql) {
     return build_select_plan(&parser, table_name, condition);
 }
 
-/* 2.3 INSERT 테이블명과 값 목록 추출: `insert into 테이블 values (...);`에서 테이블과 값 목록을 뽑아낸다. */
+/* 3.4 INSERT 값 파싱: 테이블 이름과 values 목록을 실행 계획으로 만든다. */
 static Plan parse_insert(const char *sql) {
     Parser parser = make_parser(sql);
     char table_name[MAX_TABLE_NAME_SIZE];
@@ -133,12 +131,12 @@ static Parser make_parser(const char *sql) {
     return parser;
 }
 
-/* 내부 처리: SQL이 지정한 키워드로 시작하는지 확인한다. */
+/* 내부 구현: SQL이 지정한 키워드로 시작하는지 확인한다. */
 static int starts_with(const char *text, const char *prefix) {
     return strncmp(text, prefix, strlen(prefix)) == 0;
 }
 
-/* 내부 처리: SQL이 공백을 제외하고 세미콜론으로 끝나는지 확인한다. */
+/* 내부 구현: SQL이 공백을 제외하고 세미콜론으로 끝나는지 확인한다. */
 static int ends_with_semicolon(const char *text) {
     const char *end = text + strlen(text);
 
@@ -149,7 +147,7 @@ static int ends_with_semicolon(const char *text) {
     return end > text && end[-1] == ';';
 }
 
-/* 내부 처리: 파싱 커서를 다음 의미 있는 문자 위치로 옮긴다. */
+/* 내부 구현: 파싱 커서를 다음 의미 있는 문자 위치로 옮긴다. */
 static void skip_spaces(Parser *parser) {
     if (parser->has_error) {
         return;
@@ -161,7 +159,7 @@ static void skip_spaces(Parser *parser) {
     }
 }
 
-/* 내부 처리: 현재 커서가 지정한 문자열이면 그만큼 앞으로 이동한다. */
+/* 내부 구현: 현재 커서가 지정한 문자열이면 그만큼 앞으로 이동한다. */
 static void expect_text(Parser *parser, const char *expected) {
     size_t length = strlen(expected);
 
@@ -177,7 +175,7 @@ static void expect_text(Parser *parser, const char *expected) {
     parser->cursor += length;
 }
 
-/* 내부 처리: 현재 커서가 지정한 문자이면 한 칸 앞으로 이동한다. */
+/* 내부 구현: 현재 커서가 지정한 문자이면 한 칸 앞으로 이동한다. */
 static void expect_char(Parser *parser, char expected) {
     if (parser->has_error) {
         return;
@@ -191,7 +189,7 @@ static void expect_char(Parser *parser, char expected) {
     parser->cursor++;
 }
 
-/* 내부 처리: 파싱이 입력 끝까지 도달했는지 확인한다. */
+/* 내부 구현: 파싱이 입력 끝까지 도달했는지 확인한다. */
 static void expect_end(Parser *parser) {
     if (parser->has_error) {
         return;
@@ -202,7 +200,7 @@ static void expect_end(Parser *parser) {
     }
 }
 
-/* 내부 처리: 현재 커서에서 테이블 이름 하나를 읽는다. */
+/* 내부 구현: 현재 커서에서 테이블 이름 하나를 읽는다. */
 static void read_name(Parser *parser, char *buffer, size_t buffer_size) {
     size_t length = 0;
 
@@ -229,7 +227,7 @@ static void read_name(Parser *parser, char *buffer, size_t buffer_size) {
     parser->cursor += length;
 }
 
-/* 내부 처리: 현재 커서에서 정수 하나를 읽는다. */
+/* 내부 구현: 현재 커서에서 정수 하나를 읽는다. */
 static void read_integer(Parser *parser, int *value) {
     char buffer[MAX_VALUE_SIZE];
     char *end;
@@ -269,7 +267,7 @@ static void read_integer(Parser *parser, int *value) {
     parser->cursor += length;
 }
 
-/* 내부 처리: 현재 커서에서 세미콜론 전까지의 값을 읽는다. */
+/* 내부 구현: 현재 커서에서 세미콜론 전까지의 값을 읽는다. */
 static void read_until_semicolon(Parser *parser, char *buffer, size_t buffer_size) {
     size_t length = 0;
 
@@ -302,7 +300,6 @@ static Plan build_select_plan(Parser *parser, const char *table_name, SelectCond
         return parser->error_plan;
     }
 
-    /* 흐름: 2.2 SELECT 테이블명 추출 -> 4.1 테이블 이름 매핑 */
     if (find_table(table_name) == NULL) {
         set_error(&plan, "존재하지 않는 테이블입니다");
         return plan;
@@ -334,7 +331,6 @@ static Plan build_insert_plan(Parser *parser, const char *table_name, char *valu
     }
     values = trim(values);
 
-    /* 흐름: 2.3 INSERT 테이블명과 값 목록 추출 -> 4.1 테이블 이름 매핑 */
     table = find_table(table_name);
     if (table == NULL) {
         set_error(&plan, "존재하지 않는 테이블입니다");
@@ -365,7 +361,7 @@ static Plan build_insert_plan(Parser *parser, const char *table_name, char *valu
     return plan;
 }
 
-/* 내부 처리: Plan을 실패 상태로 바꾸고 사용자에게 보여줄 오류 메시지를 저장한다. */
+/* 내부 구현: Plan을 실패 상태로 바꾸고 사용자에게 보여줄 오류 메시지를 저장한다. */
 static void set_error(Plan *plan, const char *message) {
     plan->type = QUERY_INVALID;
     snprintf(plan->error_message, sizeof(plan->error_message), "%s", message);
@@ -380,7 +376,7 @@ static void set_parser_error(Parser *parser, const char *message) {
     set_error(&parser->error_plan, message);
 }
 
-/* 내부 처리: INSERT 값에 ASCII 범위를 벗어나는 문자가 있는지 확인한다. */
+/* 내부 구현: INSERT 값에 ASCII 범위를 벗어나는 문자가 있는지 확인한다. */
 static int is_ascii_text(const char *text) {
     const unsigned char *cursor = (const unsigned char *) text;
 
@@ -394,7 +390,7 @@ static int is_ascii_text(const char *text) {
     return 1;
 }
 
-/* 내부 처리: 파싱 중 잘라낸 문자열 조각의 앞뒤 공백과 개행을 제거한다. */
+/* 내부 구현: 파싱 중 잘라낸 문자열 조각의 앞뒤 공백과 개행을 제거한다. */
 static char *trim(char *text) {
     char *end;
 

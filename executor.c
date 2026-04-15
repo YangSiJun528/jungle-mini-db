@@ -5,7 +5,7 @@
 
 #include "mini_db.h"
 
-/* 파일 안에서만 사용: 아래 핵심 함수들이 호출하는 내부 함수 목록이다. */
+/* 내부 구현: 실행 흐름을 구성하는 private 함수 목록이다. */
 static void execute_select(const Plan *plan);
 static void execute_select_all_fixed_rows(const TableMetadata *table);
 static void execute_select_by_id(const Plan *plan, const TableMetadata *table);
@@ -16,16 +16,14 @@ static int decode_fixed_row(const char fixed_row[ROW_SIZE], char *logical_row, s
 static int parse_id_value(const char *text, int *id);
 static int read_fixed_row_at(const TableMetadata *table, RowLocation location, char fixed_row[ROW_SIZE]);
 
-/* 3.1 실행 분기: 파싱된 계획을 SELECT 또는 INSERT 실행으로 보낸다. */
+/* 4.1 실행 분기: 파싱된 계획을 SELECT 또는 INSERT 실행으로 보낸다. */
 void execute_plan(const Plan *plan) {
     if (plan->type == QUERY_SELECT) {
-        /* 흐름: 3.1 실행 분기 -> 3.2 SELECT 전체 조회 */
         execute_select(plan);
         return;
     }
 
     if (plan->type == QUERY_INSERT) {
-        /* 흐름: 3.1 실행 분기 -> 3.3 INSERT 행 추가 */
         execute_insert(plan);
         return;
     }
@@ -33,9 +31,8 @@ void execute_plan(const Plan *plan) {
     printf("실행할 수 없는 계획입니다\n");
 }
 
-/* 3.2 SELECT 조회: 조건 유무에 따라 전체 조회와 id 인덱스 조회로 나눈다. */
+/* 4.1 실행 분기: SELECT 조건 유무에 따라 전체 조회와 id 인덱스 조회로 나눈다. */
 static void execute_select(const Plan *plan) {
-    /* 흐름: 3.2 SELECT 전체 조회 -> 4.1 테이블 이름 매핑 */
     const TableMetadata *table = find_table(plan->table_name);
 
     if (table == NULL) {
@@ -56,20 +53,18 @@ static void execute_select(const Plan *plan) {
     printf("지원하지 않는 조회 조건입니다\n");
 }
 
-/* 3.2 SELECT 전체 조회: 데이터 파일을 고정 길이 row 단위로 읽어 출력한다. */
+/* 4.2 SELECT 전체 조회: 데이터 파일을 고정 길이 row 단위로 읽어 출력한다. */
 static void execute_select_all_fixed_rows(const TableMetadata *table) {
     FILE *file;
     char fixed_row[ROW_SIZE];
     char logical_row[MAX_INPUT_SIZE];
 
-    /* 흐름: 4.1 테이블 이름 매핑 -> 4.2 CSV 파일 열기 */
     file = fopen(table->csv_file_path, "rb");
     if (file == NULL) {
         printf("CSV 파일을 열 수 없습니다\n");
         return;
     }
 
-    /* 흐름: 4.2 CSV 파일 열기 -> 4.3 CSV 읽기/쓰기 */
     print_columns(table);
     while (1) {
         size_t read_size = fread(fixed_row, 1, ROW_SIZE, file);
@@ -89,7 +84,7 @@ static void execute_select_all_fixed_rows(const TableMetadata *table) {
     fclose(file);
 }
 
-/* 3.2 SELECT id 조건 조회: B+Tree 인덱스에서 위치를 찾고 해당 row만 읽는다. */
+/* 4.3 SELECT id 조건 조회: B+Tree 인덱스에서 위치를 찾고 해당 row만 읽는다. */
 static void execute_select_by_id(const Plan *plan, const TableMetadata *table) {
     RowLocation location;
     char fixed_row[ROW_SIZE];
@@ -115,9 +110,8 @@ static void execute_select_by_id(const Plan *plan, const TableMetadata *table) {
     printf("%s\n", logical_row);
 }
 
-/* 3.3 INSERT 행 추가: 고정 길이 row를 파일 끝에 쓰고 인덱스를 갱신한다. */
+/* 4.4 INSERT 행 추가: 고정 길이 row를 파일 끝에 쓰고 인덱스를 갱신한다. */
 static void execute_insert(const Plan *plan) {
-    /* 흐름: 3.3 INSERT 행 추가 -> 4.1 테이블 이름 매핑 */
     const TableMetadata *table = find_table(plan->table_name);
     FILE *file;
     RowLocation location;
@@ -150,14 +144,12 @@ static void execute_insert(const Plan *plan) {
         return;
     }
 
-    /* 흐름: 4.1 테이블 이름 매핑 -> 4.2 CSV 파일 열기 */
     file = fopen(table->csv_file_path, "ab+");
     if (file == NULL) {
         printf("CSV 파일을 열 수 없습니다\n");
         return;
     }
 
-    /* 흐름: 4.2 CSV 파일 열기 -> 4.3 CSV 읽기/쓰기 */
     fseek(file, 0, SEEK_END);
     location.offset = ftell(file);
     if (location.offset < 0 || location.offset % table->row_size != 0 ||
@@ -174,7 +166,7 @@ static void execute_insert(const Plan *plan) {
     }
 }
 
-/* 내부 처리: 4.3 CSV 읽기/쓰기 전에 컬럼명을 CSV 형태로 출력한다. */
+/* 내부 구현: SELECT 출력 전에 컬럼명을 CSV 형태로 출력한다. */
 static void print_columns(const TableMetadata *table) {
     for (int i = 0; i < table->column_count; i++) {
         if (i > 0) {
@@ -185,7 +177,7 @@ static void print_columns(const TableMetadata *table) {
     printf("\n");
 }
 
-/* 내부 처리: INSERT 값 목록을 64 bytes 고정 길이 row로 변환한다. */
+/* 5.2 고정 길이 row 저장: INSERT 값 목록을 64 bytes fixed row로 변환한다. */
 static int encode_fixed_row(const Plan *plan, char fixed_row[ROW_SIZE]) {
     size_t length = 0;
 
@@ -207,7 +199,7 @@ static int encode_fixed_row(const Plan *plan, char fixed_row[ROW_SIZE]) {
     return 1;
 }
 
-/* 내부 처리: fixed row의 padding을 제거하고 사용자에게 보여줄 논리 row로 바꾼다. */
+/* 5.3 논리 row 변환: fixed row의 padding을 제거하고 출력용 row로 바꾼다. */
 static int decode_fixed_row(const char fixed_row[ROW_SIZE], char *logical_row, size_t logical_row_size) {
     int end = ROW_DATA_SIZE - 1;
 
@@ -230,7 +222,7 @@ static int decode_fixed_row(const char fixed_row[ROW_SIZE], char *logical_row, s
     return 1;
 }
 
-/* 내부 처리: B+Tree key로 사용할 첫 번째 컬럼 id를 정수로 해석한다. */
+/* 내부 구현: B+Tree key로 사용할 첫 번째 컬럼 id를 정수로 해석한다. */
 static int parse_id_value(const char *text, int *id) {
     char *end;
     long parsed;
@@ -248,7 +240,7 @@ static int parse_id_value(const char *text, int *id) {
     return 1;
 }
 
-/* 내부 처리: 인덱스가 알려준 byte offset에서 정확히 한 fixed row를 읽는다. */
+/* 5.4 위치 기반 읽기/쓰기: 인덱스가 알려준 byte offset에서 fixed row 하나를 읽는다. */
 static int read_fixed_row_at(const TableMetadata *table, RowLocation location, char fixed_row[ROW_SIZE]) {
     FILE *file;
     size_t read_size;

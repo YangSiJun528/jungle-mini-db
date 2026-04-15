@@ -19,6 +19,7 @@ typedef enum {
     QUERY_INSERT
 } QueryType;
 
+/* 공유 계약: 3.3 SELECT id 조건 조회 파싱 결과를 담는다. */
 typedef enum {
     SELECT_CONDITION_NONE = 0,
     SELECT_CONDITION_ID_EQUALS
@@ -29,6 +30,7 @@ typedef struct {
     int id_value;
 } SelectCondition;
 
+/* 공유 계약: 6.2 id와 row 위치 연결에서 사용하는 파일 내 위치다. */
 typedef struct {
     long offset;
 } RowLocation;
@@ -42,7 +44,7 @@ typedef struct {
     char error_message[MAX_ERROR_SIZE];
 } Plan;
 
-/* 공유 계약: 테이블 이름, 컬럼, CSV 파일 경로를 묶은 메타데이터 타입이다. */
+/* 공유 계약: 5.1 테이블 이름 매핑에 필요한 데이터 파일과 인덱스 파일 정보다. */
 typedef struct {
     const char *name;
     const char *columns[MAX_VALUES];
@@ -56,6 +58,7 @@ typedef struct {
 Plan parse_sql(const char *sql);
 void execute_plan(const Plan *plan);
 const TableMetadata *find_table(const char *table_name);
+/* 공유 계약: 6.1 테이블별 인덱스 관리와 6.3/6.4 조회/삽입 경로다. */
 int db_index_open_table(const TableMetadata *table, char *error_message, size_t error_size);
 void db_index_shutdown_all(void);
 int db_index_get(const char *table_name, int id, RowLocation *location);
