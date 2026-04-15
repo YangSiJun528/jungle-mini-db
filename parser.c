@@ -1,4 +1,6 @@
+#include <limits.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "mini_db.h"
@@ -20,8 +22,9 @@ static void expect_text(Parser *parser, const char *expected);
 static void expect_char(Parser *parser, char expected);
 static void expect_end(Parser *parser);
 static void read_name(Parser *parser, char *buffer, size_t buffer_size);
+static void read_integer(Parser *parser, int *value);
 static void read_until_semicolon(Parser *parser, char *buffer, size_t buffer_size);
-static Plan build_select_plan(Parser *parser, const char *table_name);
+static Plan build_select_plan(Parser *parser, const char *table_name, SelectCondition condition);
 static Plan build_insert_plan(Parser *parser, const char *table_name, char *values_text);
 static void set_error(Plan *plan, const char *message);
 static void set_parser_error(Parser *parser, const char *message);
@@ -58,6 +61,7 @@ Plan parse_sql(const char *sql) {
 static Plan parse_select(const char *sql) {
     Parser parser = make_parser(sql);
     char table_name[MAX_TABLE_NAME_SIZE];
+    SelectCondition condition = {0};
 
     expect_text(&parser, "select");
     skip_spaces(&parser);
@@ -67,11 +71,37 @@ static Plan parse_select(const char *sql) {
     skip_spaces(&parser);
     read_name(&parser, table_name, sizeof(table_name));
     skip_spaces(&parser);
+
+    if (!parser.has_error && *parser.cursor != ';') {
+        if (!starts_with(parser.cursor, "where")) {
+            set_parser_error(&parser, "지원하지 않는 SELECT 문법입니다");
+        } else {
+            condition.type = SELECT_CONDITION_ID_EQUALS;
+            expect_text(&parser, "where");
+            skip_spaces(&parser);
+            if (!parser.has_error && !starts_with(parser.cursor, "id")) {
+                set_parser_error(&parser, "지원하지 않는 SELECT 문법입니다");
+            }
+            expect_text(&parser, "id");
+            skip_spaces(&parser);
+            if (!parser.has_error && *parser.cursor != '=') {
+                set_parser_error(&parser, "지원하지 않는 SELECT 문법입니다");
+            }
+            expect_char(&parser, '=');
+            skip_spaces(&parser);
+            read_integer(&parser, &condition.id_value);
+            skip_spaces(&parser);
+            if (!parser.has_error && *parser.cursor != ';') {
+                set_parser_error(&parser, "지원하지 않는 SELECT 문법입니다");
+            }
+        }
+    }
+
     expect_char(&parser, ';');
     skip_spaces(&parser);
     expect_end(&parser);
 
-    return build_select_plan(&parser, table_name);
+    return build_select_plan(&parser, table_name, condition);
 }
 
 /* 2.3 INSERT 테이블명과 값 목록 추출: `insert into 테이블 values (...);`에서 테이블과 값 목록을 뽑아낸다. */
@@ -199,6 +229,46 @@ static void read_name(Parser *parser, char *buffer, size_t buffer_size) {
     parser->cursor += length;
 }
 
+/* 내부 처리: 현재 커서에서 정수 하나를 읽는다. */
+static void read_integer(Parser *parser, int *value) {
+    char buffer[MAX_VALUE_SIZE];
+    char *end;
+    long parsed;
+    size_t length = 0;
+
+    *value = 0;
+    if (parser->has_error) {
+        return;
+    }
+
+    if (parser->cursor[length] == '-') {
+        length++;
+    }
+
+    while (parser->cursor[length] >= '0' && parser->cursor[length] <= '9') {
+        if (length + 1 >= sizeof(buffer)) {
+            set_parser_error(parser, "지원하지 않는 SELECT 문법입니다");
+            return;
+        }
+        length++;
+    }
+
+    if (length == 0 || (length == 1 && parser->cursor[0] == '-')) {
+        set_parser_error(parser, "지원하지 않는 SELECT 문법입니다");
+        return;
+    }
+
+    snprintf(buffer, sizeof(buffer), "%.*s", (int) length, parser->cursor);
+    parsed = strtol(buffer, &end, 10);
+    if (*end != '\0' || parsed < INT_MIN || parsed > INT_MAX) {
+        set_parser_error(parser, "지원하지 않는 SELECT 문법입니다");
+        return;
+    }
+
+    *value = (int) parsed;
+    parser->cursor += length;
+}
+
 /* 내부 처리: 현재 커서에서 세미콜론 전까지의 값을 읽는다. */
 static void read_until_semicolon(Parser *parser, char *buffer, size_t buffer_size) {
     size_t length = 0;
@@ -225,7 +295,7 @@ static void read_until_semicolon(Parser *parser, char *buffer, size_t buffer_siz
     parser->cursor += length;
 }
 
-static Plan build_select_plan(Parser *parser, const char *table_name) {
+static Plan build_select_plan(Parser *parser, const char *table_name, SelectCondition condition) {
     Plan plan = {0};
 
     if (parser->has_error) {
@@ -239,6 +309,7 @@ static Plan build_select_plan(Parser *parser, const char *table_name) {
     }
 
     plan.type = QUERY_SELECT;
+    plan.condition = condition;
     snprintf(plan.table_name, sizeof(plan.table_name), "%s", table_name);
     return plan;
 }
