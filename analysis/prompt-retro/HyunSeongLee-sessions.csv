@@ -1,0 +1,2 @@
+session_id,prompt_count,session_start_kst,session_end_kst,session_duration_minutes,models_used,prompt_prefixes,matching_commit_authors,nonmatching_prompt_prefixes,author_match_rate,repair_signal_count,context_dependency_count,context_management_rating,avg_prompt_chars
+019d8ff8-fcb9-7fa1-906e-fd61616f050b,51,2026-04-15T16:19:36.864381+09:00,2026-04-15T22:10:00.430355+09:00,350.4,gpt-5.4,HyunSeongLee,HyunSeongLee,,1.00,2,7,mostly_explicit,75.0

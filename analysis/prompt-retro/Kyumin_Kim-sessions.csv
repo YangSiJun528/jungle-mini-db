@@ -1,0 +1,3 @@
+session_id,prompt_count,session_start_kst,session_end_kst,session_duration_minutes,models_used,prompt_prefixes,matching_commit_authors,nonmatching_prompt_prefixes,author_match_rate,repair_signal_count,context_dependency_count,context_management_rating,avg_prompt_chars
+019d8ffa-2f65-75c1-bd72-e2fab9179772,25,2026-04-15T16:10:34.838398+09:00,2026-04-15T20:45:49.391834+09:00,275.2,gpt-5.4,Kyumin_Kim,Kyumin_Kim,,1.00,0,0,explicit,399.1
+019d8ffa-37fe-7233-b22d-9ab85d2a4e3c,1,2026-04-15T16:10:35.238697+09:00,2026-04-15T16:10:35.238697+09:00,0.0,gpt-5.4-mini,Kyumin_Kim,Kyumin_Kim,,1.00,1,0,explicit,2563.0

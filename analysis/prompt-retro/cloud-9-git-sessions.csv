@@ -1,0 +1,4 @@
+session_id,prompt_count,session_start_kst,session_end_kst,session_duration_minutes,models_used,prompt_prefixes,matching_commit_authors,nonmatching_prompt_prefixes,author_match_rate,repair_signal_count,context_dependency_count,context_management_rating,avg_prompt_chars
+019d900a-669f-7891-96ec-5202f8b63df9,19,2026-04-15T16:28:26.763153+09:00,2026-04-15T22:04:54.825755+09:00,336.5,gpt-5.4,cloud-9-git,cloud-9-git,,1.00,0,0,explicit,547.8
+019d900a-9001-7d12-9e8b-2524d1ae6b20,1,2026-04-15T16:28:26.808764+09:00,2026-04-15T16:28:26.808764+09:00,0.0,gpt-5.4-mini,cloud-9-git,cloud-9-git,,1.00,1,0,explicit,2575.0
+s1,1,2026-04-15T16:28:56.884441+09:00,2026-04-15T16:28:56.884441+09:00,0.0,gpt-5,cloud-9-git,cloud-9-git,,1.00,0,1,context_fragile,9.0
