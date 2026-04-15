@@ -198,3 +198,4 @@ $RECYCLE.BIN/
 
 # Generated benchmark outputs
 **/benchmark-results/
+**/benchmark-datasets/
