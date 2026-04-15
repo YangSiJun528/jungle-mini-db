@@ -433,8 +433,8 @@
   <div class="page">
     <section class="hero">
       <h1>reum-010 B-tree 라이브러리 비교 실험 리포트</h1>
-      <p>이번 HTML은 <code>reum-008</code>처럼 읽기 편한 구조로, 다섯 가지 B-tree/B+tree 구현을 같은 규칙으로 비교한 결과를 한 화면에 모아 보여줍니다.</p>
-      <p>코드 diff 대신 이번엔 실험 구조, 시나리오, 중간에 생긴 일, 라이브러리별 성향, 데이터셋 크기별 순위 변화를 따라가며 읽도록 구성했습니다.</p>
+      <p>이 문서는 다섯 가지 B-tree/B+tree 라이브러리를 <strong>같은 규칙</strong>으로 시험한 결과를 한눈에 보여주는 한국어 요약판입니다.</p>
+      <p>프로그래밍을 잘 모르는 사람도 읽을 수 있도록, 먼저 쉬운 설명과 용어 정리를 두고 그 뒤에 실제 순위표와 해석을 배치했습니다.</p>
       <div class="meta-grid">
         <div class="meta-card"><strong>Compared Libraries</strong><span>5</span></div>
         <div class="meta-card"><strong>Dataset Sizes</strong><span>10,000, 100,000, 1,000,000, 2,000,000, 5,000,000, 8,000,000</span></div>
@@ -449,7 +449,9 @@
         <button class="glass-button" onclick="openDatasets()">데이터셋 섹션만 펼치기</button>
       </div>
       <ul class="toc">
+        <li><a href="#beginner">처음 보는 사람용 요약</a></li>
         <li><a href="#overview">실험 개요</a></li>
+        <li><a href="#disk-note">디스크형 후보에서 생긴 일</a></li>
         <li><a href="#journey">중간에 생긴 일</a></li>
         <li><a href="#profiles">라이브러리별 성향</a></li>
         <li><a href="#dataset-1">10,000건 결과</a></li>
@@ -459,15 +461,81 @@
     </section>
 
     <section class="legend">
-      <h2>Legend</h2>
+      <h2>범례</h2>
       <p class="muted">색은 라이브러리별 식별용이고, 순위는 기본적으로 <strong>lookup ops/s</strong> 우선, 동률이면 <strong>insert ops/s</strong> 순으로 정렬했습니다.</p>
       <div class="chips-wrap"><span class='glass-chip'><span class='legend-dot kronuz'></span>Kronuz/cpp-btree · B-tree</span><span class='glass-chip'><span class='legend-dot frozenca'></span>frozenca/BTree · B-tree</span><span class='glass-chip'><span class='legend-dot habedi'></span>habedi/bptree · B+ tree</span><span class='glass-chip'><span class='legend-dot reum'></span>reum memory_bptree · B+ tree</span><span class='glass-chip'><span class='legend-dot tidwall'></span>tidwall/btree.c · B-tree</span></div>
     </section>
 
+    <details class="glass-section" id="beginner" open>
+      <summary>
+        <div class="summary-left">
+          <span class="summary-tag">입문</span>
+          <span class="summary-title">처음 보는 사람용 30초 설명</span>
+          <span class="summary-sub">이 실험이 무엇인지, 어떤 단어를 어떻게 읽어야 하는지 먼저 짚습니다.</span>
+        </div>
+        <span class="summary-toggle">펼치기</span>
+      </summary>
+      <div class="section-content">
+        <div class="content-grid two">
+          <div class="glass-card">
+            <div class="card-topline">이 실험은 무엇을 비교하나</div>
+            <p class="muted">쉽게 말해, <strong>같은 데이터를 넣고 같은 방식으로 찾아보게 했을 때</strong> 어떤 트리 라이브러리가 더 빠른지 보는 실험입니다.</p>
+            <p class="muted" style="margin-top: 10px;">여기서 비교한 것은 <strong>DB 전체</strong>가 아니라, DB 안에서 인덱스 역할을 맡는 <strong>트리 엔진 부분</strong>입니다.</p>
+          </div>
+          <div class="glass-card">
+            <div class="card-topline">결과는 어떻게 읽나</div>
+            <p class="muted"><strong>ops/s</strong>는 1초에 몇 번 처리했는지 뜻합니다. 숫자가 클수록 빠릅니다.</p>
+            <p class="muted" style="margin-top: 10px;">각 표의 순위는 먼저 <strong>lookup</strong>을 보고, lookup이 비슷하면 <strong>insert</strong>를 참고해서 읽으면 됩니다.</p>
+          </div>
+        </div>
+        <div class="content-grid three" style="margin-top: 14px;">
+          
+            <div class="glass-card">
+              <div class="card-topline">라이브러리</div>
+              <p class="muted">미리 만들어진 트리 구현체입니다. 우리는 이 부품들을 같은 문제로 시험했습니다.</p>
+            </div>
+            
+            <div class="glass-card">
+              <div class="card-topline">데이터셋 크기</div>
+              <p class="muted">트리에 넣은 데이터 개수입니다. 숫자가 클수록 더 무거운 시험입니다.</p>
+            </div>
+            
+            <div class="glass-card">
+              <div class="card-topline">시나리오</div>
+              <p class="muted">데이터를 어떤 순서로 넣고 어떤 순서로 찾는지 정한 시험 문제 유형입니다.</p>
+            </div>
+            
+            <div class="glass-card">
+              <div class="card-topline">insert</div>
+              <p class="muted">트리에 데이터를 넣는 작업입니다.</p>
+            </div>
+            
+            <div class="glass-card">
+              <div class="card-topline">lookup</div>
+              <p class="muted">트리에서 key를 이용해 값을 찾는 작업입니다.</p>
+            </div>
+            
+            <div class="glass-card">
+              <div class="card-topline">ops/s</div>
+              <p class="muted">1초에 몇 번 처리했는지 뜻합니다. 클수록 빠릅니다.</p>
+            </div>
+            
+        </div>
+        <div class="content-grid one" style="margin-top: 14px;">
+          <div class="glass-card">
+            <div class="card-topline">미리 알고 보면 좋은 점</div>
+            <ul class="findings-list">
+              <li>이 실험은 DB 전체 성능 비교가 아니라, 인덱스 엔진 역할을 하는 트리 라이브러리 자체의 insert/get 처리 속도를 비교한 것입니다.</li><li>그래서 SQL 파서, CSV 읽기, 화면 출력 속도는 여기 순위에 거의 포함되지 않습니다.</li><li>순위표는 기본적으로 lookup 성능을 먼저 보고, lookup이 같으면 insert 성능으로 다시 정렬합니다.</li><li>같은 라이브러리라도 데이터 개수, 삽입 순서, key 분포가 바뀌면 순위가 뒤집힐 수 있습니다.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </details>
+
     <details class="glass-section" id="overview" open>
       <summary>
         <div class="summary-left">
-          <span class="summary-tag">Overview</span>
+          <span class="summary-tag">개요</span>
           <span class="summary-title">실험 구조와 읽는 법</span>
           <span class="summary-sub">브랜치, 폴더 구조, 공통 실행기, 어댑터 방식, 시나리오 설계를 한 번에 훑습니다.</span>
         </div>
@@ -476,40 +544,40 @@
       <div class="section-content">
         <div class="content-grid two">
           <div class="glass-card">
-            <div class="card-topline">Experiment Architecture</div>
+            <div class="card-topline">실험 구조</div>
             <div class="diagram-board">
               <div class="diagram-row">
                 <div class="diagram-node">
-                  <strong>separate branch</strong>
+                  <strong>별도 브랜치</strong>
                   <span>기존 작업 트리를 건드리지 않기 위해 <code>btree-library-benchmark</code> worktree에서 실험</span>
                 </div>
                 <div class="diagram-node">
-                  <strong>common runner</strong>
+                  <strong>공통 실행기</strong>
                   <span>같은 데이터 생성, 같은 정답 검증, 같은 출력 형식을 유지</span>
                 </div>
                 <div class="diagram-node">
-                  <strong>adapter layer</strong>
+                  <strong>어댑터 계층</strong>
                   <span><code>create / insert / get / destroy</code> 네 함수만 통일</span>
                 </div>
               </div>
               <div class="diagram-row">
                 <div class="diagram-node">
-                  <strong>third-party libs</strong>
+                  <strong>비교 대상 라이브러리</strong>
                   <span>reum, Kronuz, frozenca, habedi, tidwall 다섯 구현을 같은 시험장에 올림</span>
                 </div>
                 <div class="diagram-node">
-                  <strong>results</strong>
+                  <strong>결과 파일</strong>
                   <span><code>latest_results.json</code>, <code>latest_summary.md</code>, <code>latest_detailed_report.md</code> 생성</span>
                 </div>
                 <div class="diagram-node">
-                  <strong>cleanup rule</strong>
+                  <strong>정리 규칙</strong>
                   <span>실행마다 <code>build/</code> 와 <code>results/runtime/</code> 초기화</span>
                 </div>
               </div>
             </div>
           </div>
           <div class="glass-card">
-            <div class="card-topline">Scenario Matrix</div>
+            <div class="card-topline">시나리오 설명</div>
             <div class="diagram-board">
               <div class="diagram-row">
                 <div class="diagram-node"><strong>dense_seq_build_rand_get</strong><span>Dense integer keys. Insert in sorted order, then lookup in random order.</span></div>
@@ -526,14 +594,40 @@
         </div>
         <div class="content-grid two" style="margin-top: 14px;">
           <div class="glass-card">
-            <div class="card-topline">Source Snapshot</div>
+            <div class="card-topline">참고 위치</div>
             <p class="muted">결과 JSON: <code>/private/tmp/jungle-mini-db-btree-benchmark/reum-koo/experiments/btree-library-benchmark/results/latest_results.json</code></p>
             <p class="muted">상세 리포트: <code>/private/tmp/jungle-mini-db-btree-benchmark/reum-koo/experiments/btree-library-benchmark/results/latest_detailed_report.md</code></p>
-            <p class="muted">HTML 생성 시각: <code>2026-04-15 23:44</code></p>
+            <p class="muted">HTML 생성 시각: <code>2026-04-16 00:11</code></p>
           </div>
           <div class="glass-card">
-            <div class="card-topline">Fast Reading Tip</div>
+            <div class="card-topline">읽는 순서</div>
             <p class="muted"><strong>큰 결론</strong>은 상단의 Winner Count와 Library Profile에서, <strong>구체적 차이</strong>는 각 데이터셋 섹션의 시나리오 카드에서 읽으면 가장 빠릅니다.</p>
+          </div>
+        </div>
+      </div>
+    </details>
+
+    <details class="glass-section" id="disk-note" open>
+      <summary>
+        <div class="summary-left">
+          <span class="summary-tag">보정</span>
+          <span class="summary-title">디스크형 후보에서 실제로 무슨 일이 있었나</span>
+          <span class="summary-sub">초기 메모의 assert 문구를 다시 검증한 결과와, 왜 최종 비교군에서 빠졌는지 설명합니다.</span>
+        </div>
+        <span class="summary-toggle">펼치기</span>
+      </summary>
+      <div class="section-content">
+        <div class="content-grid two">
+          <div class="glass-card">
+            <div class="card-topline">핵심 정리</div>
+            <ul class="findings-list">
+              <li>초기 메모에는 `thirdparty/bplustree`가 100,000건 이상에서 assert로 중단되었다고 적혀 있었지만, 이번에 다시 재현해보니 현재 환경에서는 그 assert를 재현하지 못했습니다.</li><li>대신 raw 라이브러리를 직접 붙여 다시 돌려본 결과, `1,000,000`건 `sparse_rand_build_rand_get`에서 lookup 값이 틀어지는 현상을 확인했습니다.</li><li>실제로 관찰한 대표 증상은 `expected 2564785620, got -1730181676` 형태의 값 손상으로, 프로그램이 즉시 죽는 assert보다는 큰 value 처리 문제에 더 가깝습니다.</li><li>같은 sparse 1,000,000건이라도 value를 더 작은 범위로 두면 통과했기 때문에, 이것은 단순한 record count 상한선보다는 value 범위와 저장 방식의 조합 문제로 해석하는 편이 맞습니다.</li><li>즉 현재까지의 재검증 기준으로는 &#x27;이 라이브러리는 몇 개 이상 데이터를 절대 못 넣는다&#x27;보다 &#x27;이 벤치마크에서 사용한 큰 value 패턴을 안정적으로 보존하지 못했다&#x27;가 더 정확한 설명입니다.</li>
+            </ul>
+          </div>
+          <div class="glass-card">
+            <div class="card-topline">쉽게 말하면</div>
+            <p class="muted">처음에는 "데이터가 너무 많아서 라이브러리가 바로 죽는다"처럼 보였지만, 다시 확인해보니 실제로는 <strong>큰 value를 넣었을 때 값이 틀어지는 문제</strong>가 더 먼저 잡혔습니다.</p>
+            <p class="muted" style="margin-top: 10px;">그래서 현재 비교표는 <strong>끝까지 안정적으로 돌고, 결과를 믿고 읽을 수 있는 다섯 개 in-memory 구현</strong>만 남긴 상태입니다.</p>
           </div>
         </div>
       </div>
@@ -542,7 +636,7 @@
     <details class="glass-section" id="journey" open>
       <summary>
         <div class="summary-left">
-          <span class="summary-tag">Journey</span>
+          <span class="summary-tag">과정</span>
           <span class="summary-title">중간에 생긴 일과 해석 포인트</span>
           <span class="summary-sub">단순 결과표가 아니라, 실험 도중 구조가 어떻게 커지고 무엇이 탈락했는지도 같이 남겼습니다.</span>
         </div>
@@ -551,13 +645,13 @@
       <div class="section-content">
         <div class="content-grid two">
           <div class="glass-card">
-            <div class="card-topline">What Happened During The Work</div>
+            <div class="card-topline">작업 중 생긴 일</div>
             <ol class="timeline">
-              <li><span class='step'>1</span><div>작업 트리에 로그 파일 변경이 남아 있어서, 원래 저장소를 건드리지 않기 위해 별도 worktree와 `btree-library-benchmark` 브랜치에서 실험을 진행했다.</div></li><li><span class='step'>2</span><div>초기 벤치마크 러너는 단일 record count와 두 가지 시나리오만 지원했는데, 비교 해상도를 높이기 위해 세 가지 데이터셋 크기와 여섯 가지 시나리오를 도는 구조로 확장했다.</div></li><li><span class='step'>3</span><div>처음 후보에는 프로젝트 내부의 디스크형 `thirdparty/bplustree`도 넣었지만, 100,000건 이상에서 assertion failure로 중단되어 최종 비교군에서 제외했다.</div></li><li><span class='step'>4</span><div>비교군을 다섯 개로 유지하면서도 끝까지 안정적으로 돌리는 것이 중요하다고 판단해, 제외한 후보 대신 `frozenca/BTree`를 넣어 최종 세트를 완성했다.</div></li><li><span class='step'>5</span><div>제외한 라이브러리의 산출물이 `build/`와 `results/runtime/`에 남아 결과 해석을 흐릴 수 있다는 점을 확인했고, 실행 스크립트가 매번 두 폴더를 재생성하도록 수정했다.</div></li><li><span class='step'>6</span><div>`cmake`가 설치되어 있지 않아, Apple clang의 `cc`와 `c++`를 직접 호출하는 방식으로 빌드 파이프라인을 구성했다.</div></li>
+              <li><span class='step'>1</span><div>작업 트리에 로그 파일 변경이 남아 있어서, 원래 저장소를 건드리지 않기 위해 별도 worktree와 `btree-library-benchmark` 브랜치에서 실험을 진행했다.</div></li><li><span class='step'>2</span><div>초기 벤치마크 러너는 단일 record count와 두 가지 시나리오만 지원했는데, 비교 해상도를 높이기 위해 세 가지 데이터셋 크기와 여섯 가지 시나리오를 도는 구조로 확장했다.</div></li><li><span class='step'>3</span><div>처음 후보에는 프로젝트 내부의 디스크형 `thirdparty/bplustree`도 넣었지만, 재검증 결과 assert보다는 큰 value를 쓰는 sparse 대용량 시나리오에서 lookup 값 손상이 먼저 관찰되어 최종 비교군에서 제외했다.</div></li><li><span class='step'>4</span><div>비교군을 다섯 개로 유지하면서도 끝까지 안정적으로 돌리는 것이 중요하다고 판단해, 제외한 후보 대신 `frozenca/BTree`를 넣어 최종 세트를 완성했다.</div></li><li><span class='step'>5</span><div>제외한 라이브러리의 산출물이 `build/`와 `results/runtime/`에 남아 결과 해석을 흐릴 수 있다는 점을 확인했고, 실행 스크립트가 매번 두 폴더를 재생성하도록 수정했다.</div></li><li><span class='step'>6</span><div>`cmake`가 설치되어 있지 않아, Apple clang의 `cc`와 `c++`를 직접 호출하는 방식으로 빌드 파이프라인을 구성했다.</div></li>
             </ol>
           </div>
           <div class="glass-card">
-            <div class="card-topline">High-Level Findings</div>
+            <div class="card-topline">핵심 관찰</div>
             <ul class="findings-list">
               <li>가장 빠른 단일 lookup 성능은 `reum memory_bptree`가 `10,000`건의 `dense random insert + hot-spot get`에서 기록한 `44876656.51 ops/s`였다.</li><li>가장 빠른 단일 insert 성능은 `Kronuz/cpp-btree`가 `10,000`건의 `dense reverse insert + random get`에서 기록한 `60316541.21 ops/s`였다.</li><li>lookup 1위 횟수는 `Kronuz/cpp-btree`가 `13`회로 가장 많았다.</li><li>insert 1위 횟수는 `Kronuz/cpp-btree`가 `17`회로 가장 많았다.</li><li>`habedi/bptree`는 random insert에서도 lookup 성능이 안정적이어서 B+ tree 계열 비교군 중 가장 꾸준한 편이었다.</li><li>`reum memory_bptree`는 작은 dense dataset에서는 강했지만, `100,000`건 sparse random 시나리오에서 lookup이 크게 떨어져 데이터 분포 민감도가 눈에 띄었다.</li><li>`sparse_rand_build_rand_get`와 `dense_rand_build_hot_get`를 같이 보니, 키 분포와 접근 지역성이 순위에 실제 영향을 준다는 점이 드러났다.</li>
             </ul>
@@ -569,7 +663,7 @@
     <details class="glass-section" id="profiles" open>
       <summary>
         <div class="summary-left">
-          <span class="summary-tag">Profiles</span>
+          <span class="summary-tag">성향</span>
           <span class="summary-title">라이브러리별 성향 요약</span>
           <span class="summary-sub">우승 횟수, 평균 lookup 순위, 가장 잘 나온 케이스를 카드 형태로 모았습니다.</span>
         </div>
@@ -579,25 +673,25 @@
         <div class="content-grid three">
           
             <article class="glass-card profile-card">
-              <div class="card-topline">Library Profile</div>
+              <div class="card-topline">라이브러리 카드</div>
               <h3><span class="library-pill kronuz">Kronuz/cpp-btree</span></h3>
               <p class="muted">dense key 강자</p>
               <div class="profile-meta">
-                <span class="mini-stat">avg lookup rank <strong>1.92</strong></span>
-                <span class="mini-stat">family <strong>B-tree</strong></span>
+                <span class="mini-stat">평균 lookup 순위 <strong>1.92</strong></span>
+                <span class="mini-stat">계열 <strong>B-tree</strong></span>
               </div>
-              <div class="bar-label">Lookup wins <strong>13</strong></div>
+              <div class="bar-label">Lookup 우승 횟수 <strong>13</strong></div>
               <div class="metric-bar large"><span class="metric-fill kronuz" style="width: 100.00%"></span></div>
-              <div class="bar-label">Insert wins <strong>17</strong></div>
+              <div class="bar-label">Insert 우승 횟수 <strong>17</strong></div>
               <div class="metric-bar large"><span class="metric-fill kronuz" style="width: 100.00%"></span></div>
               <div class="profile-grid">
                 <div class="mini-panel">
-                  <strong>Best Lookup</strong>
+                  <strong>가장 강했던 lookup</strong>
                   <span>10,000 · dense random insert + hot-spot get</span>
                   <em>42,583,452.92 ops/s</em>
                 </div>
                 <div class="mini-panel">
-                  <strong>Best Insert</strong>
+                  <strong>가장 강했던 insert</strong>
                   <span>10,000 · dense reverse insert + random get</span>
                   <em>60,316,541.21 ops/s</em>
                 </div>
@@ -606,25 +700,25 @@
             
 
             <article class="glass-card profile-card">
-              <div class="card-topline">Library Profile</div>
+              <div class="card-topline">라이브러리 카드</div>
               <h3><span class="library-pill frozenca">frozenca/BTree</span></h3>
               <p class="muted">hot-spot lookup 강자</p>
               <div class="profile-meta">
-                <span class="mini-stat">avg lookup rank <strong>2.50</strong></span>
-                <span class="mini-stat">family <strong>B-tree</strong></span>
+                <span class="mini-stat">평균 lookup 순위 <strong>2.50</strong></span>
+                <span class="mini-stat">계열 <strong>B-tree</strong></span>
               </div>
-              <div class="bar-label">Lookup wins <strong>3</strong></div>
+              <div class="bar-label">Lookup 우승 횟수 <strong>3</strong></div>
               <div class="metric-bar large"><span class="metric-fill frozenca" style="width: 23.08%"></span></div>
-              <div class="bar-label">Insert wins <strong>6</strong></div>
+              <div class="bar-label">Insert 우승 횟수 <strong>6</strong></div>
               <div class="metric-bar large"><span class="metric-fill frozenca" style="width: 35.29%"></span></div>
               <div class="profile-grid">
                 <div class="mini-panel">
-                  <strong>Best Lookup</strong>
+                  <strong>가장 강했던 lookup</strong>
                   <span>10,000 · dense random insert + hot-spot get</span>
                   <em>40,383,644.62 ops/s</em>
                 </div>
                 <div class="mini-panel">
-                  <strong>Best Insert</strong>
+                  <strong>가장 강했던 insert</strong>
                   <span>10,000 · dense reverse insert + random get</span>
                   <em>23,677,998.17 ops/s</em>
                 </div>
@@ -633,25 +727,25 @@
             
 
             <article class="glass-card profile-card">
-              <div class="card-topline">Library Profile</div>
+              <div class="card-topline">라이브러리 카드</div>
               <h3><span class="library-pill habedi">habedi/bptree</span></h3>
               <p class="muted">꾸준한 lookup</p>
               <div class="profile-meta">
-                <span class="mini-stat">avg lookup rank <strong>3.08</strong></span>
-                <span class="mini-stat">family <strong>B+ tree</strong></span>
+                <span class="mini-stat">평균 lookup 순위 <strong>3.08</strong></span>
+                <span class="mini-stat">계열 <strong>B+ tree</strong></span>
               </div>
-              <div class="bar-label">Lookup wins <strong>10</strong></div>
+              <div class="bar-label">Lookup 우승 횟수 <strong>10</strong></div>
               <div class="metric-bar large"><span class="metric-fill habedi" style="width: 76.92%"></span></div>
-              <div class="bar-label">Insert wins <strong>1</strong></div>
+              <div class="bar-label">Insert 우승 횟수 <strong>1</strong></div>
               <div class="metric-bar large"><span class="metric-fill habedi" style="width: 5.88%"></span></div>
               <div class="profile-grid">
                 <div class="mini-panel">
-                  <strong>Best Lookup</strong>
+                  <strong>가장 강했던 lookup</strong>
                   <span>10,000 · dense reverse insert + random get</span>
                   <em>19,938,509.64 ops/s</em>
                 </div>
                 <div class="mini-panel">
-                  <strong>Best Insert</strong>
+                  <strong>가장 강했던 insert</strong>
                   <span>10,000 · dense sequential insert + sequential get</span>
                   <em>20,842,408.47 ops/s</em>
                 </div>
@@ -660,25 +754,25 @@
             
 
             <article class="glass-card profile-card">
-              <div class="card-topline">Library Profile</div>
+              <div class="card-topline">라이브러리 카드</div>
               <h3><span class="library-pill reum">reum memory_bptree</span></h3>
               <p class="muted">프로젝트 내부 기준선</p>
               <div class="profile-meta">
-                <span class="mini-stat">avg lookup rank <strong>2.86</strong></span>
-                <span class="mini-stat">family <strong>B+ tree</strong></span>
+                <span class="mini-stat">평균 lookup 순위 <strong>2.86</strong></span>
+                <span class="mini-stat">계열 <strong>B+ tree</strong></span>
               </div>
-              <div class="bar-label">Lookup wins <strong>10</strong></div>
+              <div class="bar-label">Lookup 우승 횟수 <strong>10</strong></div>
               <div class="metric-bar large"><span class="metric-fill reum" style="width: 76.92%"></span></div>
-              <div class="bar-label">Insert wins <strong>12</strong></div>
+              <div class="bar-label">Insert 우승 횟수 <strong>12</strong></div>
               <div class="metric-bar large"><span class="metric-fill reum" style="width: 70.59%"></span></div>
               <div class="profile-grid">
                 <div class="mini-panel">
-                  <strong>Best Lookup</strong>
+                  <strong>가장 강했던 lookup</strong>
                   <span>10,000 · dense random insert + hot-spot get</span>
                   <em>44,876,656.51 ops/s</em>
                 </div>
                 <div class="mini-panel">
-                  <strong>Best Insert</strong>
+                  <strong>가장 강했던 insert</strong>
                   <span>10,000 · dense reverse insert + random get</span>
                   <em>37,499,953.13 ops/s</em>
                 </div>
@@ -687,25 +781,25 @@
             
 
             <article class="glass-card profile-card">
-              <div class="card-topline">Library Profile</div>
+              <div class="card-topline">라이브러리 카드</div>
               <h3><span class="library-pill tidwall">tidwall/btree.c</span></h3>
               <p class="muted">C 단일 파일 구현</p>
               <div class="profile-meta">
-                <span class="mini-stat">avg lookup rank <strong>4.64</strong></span>
-                <span class="mini-stat">family <strong>B-tree</strong></span>
+                <span class="mini-stat">평균 lookup 순위 <strong>4.64</strong></span>
+                <span class="mini-stat">계열 <strong>B-tree</strong></span>
               </div>
-              <div class="bar-label">Lookup wins <strong>0</strong></div>
+              <div class="bar-label">Lookup 우승 횟수 <strong>0</strong></div>
               <div class="metric-bar large"><span class="metric-fill tidwall" style="width: 0.00%"></span></div>
-              <div class="bar-label">Insert wins <strong>0</strong></div>
+              <div class="bar-label">Insert 우승 횟수 <strong>0</strong></div>
               <div class="metric-bar large"><span class="metric-fill tidwall" style="width: 0.00%"></span></div>
               <div class="profile-grid">
                 <div class="mini-panel">
-                  <strong>Best Lookup</strong>
+                  <strong>가장 강했던 lookup</strong>
                   <span>10,000 · dense sequential insert + sequential get</span>
                   <em>23,663,934.27 ops/s</em>
                 </div>
                 <div class="mini-panel">
-                  <strong>Best Insert</strong>
+                  <strong>가장 강했던 insert</strong>
                   <span>10,000 · dense sequential insert + sequential get</span>
                   <em>20,652,239.01 ops/s</em>
                 </div>
@@ -720,7 +814,7 @@
             <details class="glass-section"  id="dataset-1">
               <summary>
                 <div class="summary-left">
-                  <span class="summary-tag">Dataset 1</span>
+                  <span class="summary-tag">데이터셋 1</span>
                   <span class="summary-title">10,000 records</span>
                   <span class="summary-sub">같은 6개 시나리오를 이 데이터 크기에서 다시 비교한 결과</span>
                 </div>
@@ -729,11 +823,11 @@
               <div class="section-content">
                 <div class="content-grid two">
                   <div class="glass-card">
-                    <div class="card-topline">Lookup Winners At This Size</div>
+                    <div class="card-topline">이 크기에서 lookup 우승 분포</div>
                     <div class="chips-wrap"><span class='glass-chip'><span class='legend-dot reum'></span>reum memory_bptree · lookup wins 4</span><span class='glass-chip'><span class='legend-dot kronuz'></span>Kronuz/cpp-btree · lookup wins 2</span></div>
                   </div>
                   <div class="glass-card">
-                    <div class="card-topline">Reading Tip</div>
+                    <div class="card-topline">읽을 때 주의할 점</div>
                     <p class="muted">10,000건은 아주 빠른 구간이라 수치가 조금 흔들릴 수 있습니다. 실제 결론은 100,000건과 1,000,000건 쪽에 더 무게를 두고 읽는 것이 안전합니다.</p>
                   </div>
                 </div>
@@ -747,13 +841,13 @@
     <table class="ranking-table">
       <thead>
         <tr>
-          <th>Rank</th>
-          <th>Library</th>
-          <th>Family</th>
+          <th>순위</th>
+          <th>라이브러리</th>
+          <th>계열</th>
           <th>Insert ops/s</th>
           <th>Lookup ops/s</th>
-          <th>Insert sec</th>
-          <th>Lookup sec</th>
+          <th>Insert 초</th>
+          <th>Lookup 초</th>
         </tr>
       </thead>
       <tbody>
@@ -776,13 +870,13 @@
     <table class="ranking-table">
       <thead>
         <tr>
-          <th>Rank</th>
-          <th>Library</th>
-          <th>Family</th>
+          <th>순위</th>
+          <th>라이브러리</th>
+          <th>계열</th>
           <th>Insert ops/s</th>
           <th>Lookup ops/s</th>
-          <th>Insert sec</th>
-          <th>Lookup sec</th>
+          <th>Insert 초</th>
+          <th>Lookup 초</th>
         </tr>
       </thead>
       <tbody>
@@ -805,13 +899,13 @@
     <table class="ranking-table">
       <thead>
         <tr>
-          <th>Rank</th>
-          <th>Library</th>
-          <th>Family</th>
+          <th>순위</th>
+          <th>라이브러리</th>
+          <th>계열</th>
           <th>Insert ops/s</th>
           <th>Lookup ops/s</th>
-          <th>Insert sec</th>
-          <th>Lookup sec</th>
+          <th>Insert 초</th>
+          <th>Lookup 초</th>
         </tr>
       </thead>
       <tbody>
@@ -834,13 +928,13 @@
     <table class="ranking-table">
       <thead>
         <tr>
-          <th>Rank</th>
-          <th>Library</th>
-          <th>Family</th>
+          <th>순위</th>
+          <th>라이브러리</th>
+          <th>계열</th>
           <th>Insert ops/s</th>
           <th>Lookup ops/s</th>
-          <th>Insert sec</th>
-          <th>Lookup sec</th>
+          <th>Insert 초</th>
+          <th>Lookup 초</th>
         </tr>
       </thead>
       <tbody>
@@ -863,13 +957,13 @@
     <table class="ranking-table">
       <thead>
         <tr>
-          <th>Rank</th>
-          <th>Library</th>
-          <th>Family</th>
+          <th>순위</th>
+          <th>라이브러리</th>
+          <th>계열</th>
           <th>Insert ops/s</th>
           <th>Lookup ops/s</th>
-          <th>Insert sec</th>
-          <th>Lookup sec</th>
+          <th>Insert 초</th>
+          <th>Lookup 초</th>
         </tr>
       </thead>
       <tbody>
@@ -892,13 +986,13 @@
     <table class="ranking-table">
       <thead>
         <tr>
-          <th>Rank</th>
-          <th>Library</th>
-          <th>Family</th>
+          <th>순위</th>
+          <th>라이브러리</th>
+          <th>계열</th>
           <th>Insert ops/s</th>
           <th>Lookup ops/s</th>
-          <th>Insert sec</th>
-          <th>Lookup sec</th>
+          <th>Insert 초</th>
+          <th>Lookup 초</th>
         </tr>
       </thead>
       <tbody>
@@ -920,7 +1014,7 @@
             <details class="glass-section" open id="dataset-2">
               <summary>
                 <div class="summary-left">
-                  <span class="summary-tag">Dataset 2</span>
+                  <span class="summary-tag">데이터셋 2</span>
                   <span class="summary-title">100,000 records</span>
                   <span class="summary-sub">같은 6개 시나리오를 이 데이터 크기에서 다시 비교한 결과</span>
                 </div>
@@ -929,11 +1023,11 @@
               <div class="section-content">
                 <div class="content-grid two">
                   <div class="glass-card">
-                    <div class="card-topline">Lookup Winners At This Size</div>
+                    <div class="card-topline">이 크기에서 lookup 우승 분포</div>
                     <div class="chips-wrap"><span class='glass-chip'><span class='legend-dot kronuz'></span>Kronuz/cpp-btree · lookup wins 3</span><span class='glass-chip'><span class='legend-dot frozenca'></span>frozenca/BTree · lookup wins 2</span><span class='glass-chip'><span class='legend-dot reum'></span>reum memory_bptree · lookup wins 1</span></div>
                   </div>
                   <div class="glass-card">
-                    <div class="card-topline">Reading Tip</div>
+                    <div class="card-topline">읽을 때 주의할 점</div>
                     <p class="muted">10,000건은 아주 빠른 구간이라 수치가 조금 흔들릴 수 있습니다. 실제 결론은 100,000건과 1,000,000건 쪽에 더 무게를 두고 읽는 것이 안전합니다.</p>
                   </div>
                 </div>
@@ -947,13 +1041,13 @@
     <table class="ranking-table">
       <thead>
         <tr>
-          <th>Rank</th>
-          <th>Library</th>
-          <th>Family</th>
+          <th>순위</th>
+          <th>라이브러리</th>
+          <th>계열</th>
           <th>Insert ops/s</th>
           <th>Lookup ops/s</th>
-          <th>Insert sec</th>
-          <th>Lookup sec</th>
+          <th>Insert 초</th>
+          <th>Lookup 초</th>
         </tr>
       </thead>
       <tbody>
@@ -976,13 +1070,13 @@
     <table class="ranking-table">
       <thead>
         <tr>
-          <th>Rank</th>
-          <th>Library</th>
-          <th>Family</th>
+          <th>순위</th>
+          <th>라이브러리</th>
+          <th>계열</th>
           <th>Insert ops/s</th>
           <th>Lookup ops/s</th>
-          <th>Insert sec</th>
-          <th>Lookup sec</th>
+          <th>Insert 초</th>
+          <th>Lookup 초</th>
         </tr>
       </thead>
       <tbody>
@@ -1005,13 +1099,13 @@
     <table class="ranking-table">
       <thead>
         <tr>
-          <th>Rank</th>
-          <th>Library</th>
-          <th>Family</th>
+          <th>순위</th>
+          <th>라이브러리</th>
+          <th>계열</th>
           <th>Insert ops/s</th>
           <th>Lookup ops/s</th>
-          <th>Insert sec</th>
-          <th>Lookup sec</th>
+          <th>Insert 초</th>
+          <th>Lookup 초</th>
         </tr>
       </thead>
       <tbody>
@@ -1034,13 +1128,13 @@
     <table class="ranking-table">
       <thead>
         <tr>
-          <th>Rank</th>
-          <th>Library</th>
-          <th>Family</th>
+          <th>순위</th>
+          <th>라이브러리</th>
+          <th>계열</th>
           <th>Insert ops/s</th>
           <th>Lookup ops/s</th>
-          <th>Insert sec</th>
-          <th>Lookup sec</th>
+          <th>Insert 초</th>
+          <th>Lookup 초</th>
         </tr>
       </thead>
       <tbody>
@@ -1063,13 +1157,13 @@
     <table class="ranking-table">
       <thead>
         <tr>
-          <th>Rank</th>
-          <th>Library</th>
-          <th>Family</th>
+          <th>순위</th>
+          <th>라이브러리</th>
+          <th>계열</th>
           <th>Insert ops/s</th>
           <th>Lookup ops/s</th>
-          <th>Insert sec</th>
-          <th>Lookup sec</th>
+          <th>Insert 초</th>
+          <th>Lookup 초</th>
         </tr>
       </thead>
       <tbody>
@@ -1092,13 +1186,13 @@
     <table class="ranking-table">
       <thead>
         <tr>
-          <th>Rank</th>
-          <th>Library</th>
-          <th>Family</th>
+          <th>순위</th>
+          <th>라이브러리</th>
+          <th>계열</th>
           <th>Insert ops/s</th>
           <th>Lookup ops/s</th>
-          <th>Insert sec</th>
-          <th>Lookup sec</th>
+          <th>Insert 초</th>
+          <th>Lookup 초</th>
         </tr>
       </thead>
       <tbody>
@@ -1120,7 +1214,7 @@
             <details class="glass-section" open id="dataset-3">
               <summary>
                 <div class="summary-left">
-                  <span class="summary-tag">Dataset 3</span>
+                  <span class="summary-tag">데이터셋 3</span>
                   <span class="summary-title">1,000,000 records</span>
                   <span class="summary-sub">같은 6개 시나리오를 이 데이터 크기에서 다시 비교한 결과</span>
                 </div>
@@ -1129,11 +1223,11 @@
               <div class="section-content">
                 <div class="content-grid two">
                   <div class="glass-card">
-                    <div class="card-topline">Lookup Winners At This Size</div>
+                    <div class="card-topline">이 크기에서 lookup 우승 분포</div>
                     <div class="chips-wrap"><span class='glass-chip'><span class='legend-dot kronuz'></span>Kronuz/cpp-btree · lookup wins 5</span><span class='glass-chip'><span class='legend-dot habedi'></span>habedi/bptree · lookup wins 1</span></div>
                   </div>
                   <div class="glass-card">
-                    <div class="card-topline">Reading Tip</div>
+                    <div class="card-topline">읽을 때 주의할 점</div>
                     <p class="muted">10,000건은 아주 빠른 구간이라 수치가 조금 흔들릴 수 있습니다. 실제 결론은 100,000건과 1,000,000건 쪽에 더 무게를 두고 읽는 것이 안전합니다.</p>
                   </div>
                 </div>
@@ -1147,13 +1241,13 @@
     <table class="ranking-table">
       <thead>
         <tr>
-          <th>Rank</th>
-          <th>Library</th>
-          <th>Family</th>
+          <th>순위</th>
+          <th>라이브러리</th>
+          <th>계열</th>
           <th>Insert ops/s</th>
           <th>Lookup ops/s</th>
-          <th>Insert sec</th>
-          <th>Lookup sec</th>
+          <th>Insert 초</th>
+          <th>Lookup 초</th>
         </tr>
       </thead>
       <tbody>
@@ -1176,13 +1270,13 @@
     <table class="ranking-table">
       <thead>
         <tr>
-          <th>Rank</th>
-          <th>Library</th>
-          <th>Family</th>
+          <th>순위</th>
+          <th>라이브러리</th>
+          <th>계열</th>
           <th>Insert ops/s</th>
           <th>Lookup ops/s</th>
-          <th>Insert sec</th>
-          <th>Lookup sec</th>
+          <th>Insert 초</th>
+          <th>Lookup 초</th>
         </tr>
       </thead>
       <tbody>
@@ -1205,13 +1299,13 @@
     <table class="ranking-table">
       <thead>
         <tr>
-          <th>Rank</th>
-          <th>Library</th>
-          <th>Family</th>
+          <th>순위</th>
+          <th>라이브러리</th>
+          <th>계열</th>
           <th>Insert ops/s</th>
           <th>Lookup ops/s</th>
-          <th>Insert sec</th>
-          <th>Lookup sec</th>
+          <th>Insert 초</th>
+          <th>Lookup 초</th>
         </tr>
       </thead>
       <tbody>
@@ -1234,13 +1328,13 @@
     <table class="ranking-table">
       <thead>
         <tr>
-          <th>Rank</th>
-          <th>Library</th>
-          <th>Family</th>
+          <th>순위</th>
+          <th>라이브러리</th>
+          <th>계열</th>
           <th>Insert ops/s</th>
           <th>Lookup ops/s</th>
-          <th>Insert sec</th>
-          <th>Lookup sec</th>
+          <th>Insert 초</th>
+          <th>Lookup 초</th>
         </tr>
       </thead>
       <tbody>
@@ -1263,13 +1357,13 @@
     <table class="ranking-table">
       <thead>
         <tr>
-          <th>Rank</th>
-          <th>Library</th>
-          <th>Family</th>
+          <th>순위</th>
+          <th>라이브러리</th>
+          <th>계열</th>
           <th>Insert ops/s</th>
           <th>Lookup ops/s</th>
-          <th>Insert sec</th>
-          <th>Lookup sec</th>
+          <th>Insert 초</th>
+          <th>Lookup 초</th>
         </tr>
       </thead>
       <tbody>
@@ -1292,13 +1386,13 @@
     <table class="ranking-table">
       <thead>
         <tr>
-          <th>Rank</th>
-          <th>Library</th>
-          <th>Family</th>
+          <th>순위</th>
+          <th>라이브러리</th>
+          <th>계열</th>
           <th>Insert ops/s</th>
           <th>Lookup ops/s</th>
-          <th>Insert sec</th>
-          <th>Lookup sec</th>
+          <th>Insert 초</th>
+          <th>Lookup 초</th>
         </tr>
       </thead>
       <tbody>
@@ -1320,7 +1414,7 @@
             <details class="glass-section"  id="dataset-4">
               <summary>
                 <div class="summary-left">
-                  <span class="summary-tag">Dataset 4</span>
+                  <span class="summary-tag">데이터셋 4</span>
                   <span class="summary-title">2,000,000 records</span>
                   <span class="summary-sub">같은 6개 시나리오를 이 데이터 크기에서 다시 비교한 결과</span>
                 </div>
@@ -1329,11 +1423,11 @@
               <div class="section-content">
                 <div class="content-grid two">
                   <div class="glass-card">
-                    <div class="card-topline">Lookup Winners At This Size</div>
+                    <div class="card-topline">이 크기에서 lookup 우승 분포</div>
                     <div class="chips-wrap"><span class='glass-chip'><span class='legend-dot kronuz'></span>Kronuz/cpp-btree · lookup wins 2</span><span class='glass-chip'><span class='legend-dot habedi'></span>habedi/bptree · lookup wins 2</span><span class='glass-chip'><span class='legend-dot reum'></span>reum memory_bptree · lookup wins 2</span></div>
                   </div>
                   <div class="glass-card">
-                    <div class="card-topline">Reading Tip</div>
+                    <div class="card-topline">읽을 때 주의할 점</div>
                     <p class="muted">10,000건은 아주 빠른 구간이라 수치가 조금 흔들릴 수 있습니다. 실제 결론은 100,000건과 1,000,000건 쪽에 더 무게를 두고 읽는 것이 안전합니다.</p>
                   </div>
                 </div>
@@ -1347,13 +1441,13 @@
     <table class="ranking-table">
       <thead>
         <tr>
-          <th>Rank</th>
-          <th>Library</th>
-          <th>Family</th>
+          <th>순위</th>
+          <th>라이브러리</th>
+          <th>계열</th>
           <th>Insert ops/s</th>
           <th>Lookup ops/s</th>
-          <th>Insert sec</th>
-          <th>Lookup sec</th>
+          <th>Insert 초</th>
+          <th>Lookup 초</th>
         </tr>
       </thead>
       <tbody>
@@ -1376,13 +1470,13 @@
     <table class="ranking-table">
       <thead>
         <tr>
-          <th>Rank</th>
-          <th>Library</th>
-          <th>Family</th>
+          <th>순위</th>
+          <th>라이브러리</th>
+          <th>계열</th>
           <th>Insert ops/s</th>
           <th>Lookup ops/s</th>
-          <th>Insert sec</th>
-          <th>Lookup sec</th>
+          <th>Insert 초</th>
+          <th>Lookup 초</th>
         </tr>
       </thead>
       <tbody>
@@ -1405,13 +1499,13 @@
     <table class="ranking-table">
       <thead>
         <tr>
-          <th>Rank</th>
-          <th>Library</th>
-          <th>Family</th>
+          <th>순위</th>
+          <th>라이브러리</th>
+          <th>계열</th>
           <th>Insert ops/s</th>
           <th>Lookup ops/s</th>
-          <th>Insert sec</th>
-          <th>Lookup sec</th>
+          <th>Insert 초</th>
+          <th>Lookup 초</th>
         </tr>
       </thead>
       <tbody>
@@ -1434,13 +1528,13 @@
     <table class="ranking-table">
       <thead>
         <tr>
-          <th>Rank</th>
-          <th>Library</th>
-          <th>Family</th>
+          <th>순위</th>
+          <th>라이브러리</th>
+          <th>계열</th>
           <th>Insert ops/s</th>
           <th>Lookup ops/s</th>
-          <th>Insert sec</th>
-          <th>Lookup sec</th>
+          <th>Insert 초</th>
+          <th>Lookup 초</th>
         </tr>
       </thead>
       <tbody>
@@ -1463,13 +1557,13 @@
     <table class="ranking-table">
       <thead>
         <tr>
-          <th>Rank</th>
-          <th>Library</th>
-          <th>Family</th>
+          <th>순위</th>
+          <th>라이브러리</th>
+          <th>계열</th>
           <th>Insert ops/s</th>
           <th>Lookup ops/s</th>
-          <th>Insert sec</th>
-          <th>Lookup sec</th>
+          <th>Insert 초</th>
+          <th>Lookup 초</th>
         </tr>
       </thead>
       <tbody>
@@ -1492,13 +1586,13 @@
     <table class="ranking-table">
       <thead>
         <tr>
-          <th>Rank</th>
-          <th>Library</th>
-          <th>Family</th>
+          <th>순위</th>
+          <th>라이브러리</th>
+          <th>계열</th>
           <th>Insert ops/s</th>
           <th>Lookup ops/s</th>
-          <th>Insert sec</th>
-          <th>Lookup sec</th>
+          <th>Insert 초</th>
+          <th>Lookup 초</th>
         </tr>
       </thead>
       <tbody>
@@ -1520,7 +1614,7 @@
             <details class="glass-section"  id="dataset-5">
               <summary>
                 <div class="summary-left">
-                  <span class="summary-tag">Dataset 5</span>
+                  <span class="summary-tag">데이터셋 5</span>
                   <span class="summary-title">5,000,000 records</span>
                   <span class="summary-sub">같은 6개 시나리오를 이 데이터 크기에서 다시 비교한 결과</span>
                 </div>
@@ -1529,11 +1623,11 @@
               <div class="section-content">
                 <div class="content-grid two">
                   <div class="glass-card">
-                    <div class="card-topline">Lookup Winners At This Size</div>
+                    <div class="card-topline">이 크기에서 lookup 우승 분포</div>
                     <div class="chips-wrap"><span class='glass-chip'><span class='legend-dot habedi'></span>habedi/bptree · lookup wins 4</span><span class='glass-chip'><span class='legend-dot reum'></span>reum memory_bptree · lookup wins 2</span></div>
                   </div>
                   <div class="glass-card">
-                    <div class="card-topline">Reading Tip</div>
+                    <div class="card-topline">읽을 때 주의할 점</div>
                     <p class="muted">10,000건은 아주 빠른 구간이라 수치가 조금 흔들릴 수 있습니다. 실제 결론은 100,000건과 1,000,000건 쪽에 더 무게를 두고 읽는 것이 안전합니다.</p>
                   </div>
                 </div>
@@ -1547,13 +1641,13 @@
     <table class="ranking-table">
       <thead>
         <tr>
-          <th>Rank</th>
-          <th>Library</th>
-          <th>Family</th>
+          <th>순위</th>
+          <th>라이브러리</th>
+          <th>계열</th>
           <th>Insert ops/s</th>
           <th>Lookup ops/s</th>
-          <th>Insert sec</th>
-          <th>Lookup sec</th>
+          <th>Insert 초</th>
+          <th>Lookup 초</th>
         </tr>
       </thead>
       <tbody>
@@ -1576,13 +1670,13 @@
     <table class="ranking-table">
       <thead>
         <tr>
-          <th>Rank</th>
-          <th>Library</th>
-          <th>Family</th>
+          <th>순위</th>
+          <th>라이브러리</th>
+          <th>계열</th>
           <th>Insert ops/s</th>
           <th>Lookup ops/s</th>
-          <th>Insert sec</th>
-          <th>Lookup sec</th>
+          <th>Insert 초</th>
+          <th>Lookup 초</th>
         </tr>
       </thead>
       <tbody>
@@ -1605,13 +1699,13 @@
     <table class="ranking-table">
       <thead>
         <tr>
-          <th>Rank</th>
-          <th>Library</th>
-          <th>Family</th>
+          <th>순위</th>
+          <th>라이브러리</th>
+          <th>계열</th>
           <th>Insert ops/s</th>
           <th>Lookup ops/s</th>
-          <th>Insert sec</th>
-          <th>Lookup sec</th>
+          <th>Insert 초</th>
+          <th>Lookup 초</th>
         </tr>
       </thead>
       <tbody>
@@ -1634,13 +1728,13 @@
     <table class="ranking-table">
       <thead>
         <tr>
-          <th>Rank</th>
-          <th>Library</th>
-          <th>Family</th>
+          <th>순위</th>
+          <th>라이브러리</th>
+          <th>계열</th>
           <th>Insert ops/s</th>
           <th>Lookup ops/s</th>
-          <th>Insert sec</th>
-          <th>Lookup sec</th>
+          <th>Insert 초</th>
+          <th>Lookup 초</th>
         </tr>
       </thead>
       <tbody>
@@ -1663,13 +1757,13 @@
     <table class="ranking-table">
       <thead>
         <tr>
-          <th>Rank</th>
-          <th>Library</th>
-          <th>Family</th>
+          <th>순위</th>
+          <th>라이브러리</th>
+          <th>계열</th>
           <th>Insert ops/s</th>
           <th>Lookup ops/s</th>
-          <th>Insert sec</th>
-          <th>Lookup sec</th>
+          <th>Insert 초</th>
+          <th>Lookup 초</th>
         </tr>
       </thead>
       <tbody>
@@ -1692,13 +1786,13 @@
     <table class="ranking-table">
       <thead>
         <tr>
-          <th>Rank</th>
-          <th>Library</th>
-          <th>Family</th>
+          <th>순위</th>
+          <th>라이브러리</th>
+          <th>계열</th>
           <th>Insert ops/s</th>
           <th>Lookup ops/s</th>
-          <th>Insert sec</th>
-          <th>Lookup sec</th>
+          <th>Insert 초</th>
+          <th>Lookup 초</th>
         </tr>
       </thead>
       <tbody>
@@ -1720,7 +1814,7 @@
             <details class="glass-section"  id="dataset-6">
               <summary>
                 <div class="summary-left">
-                  <span class="summary-tag">Dataset 6</span>
+                  <span class="summary-tag">데이터셋 6</span>
                   <span class="summary-title">8,000,000 records</span>
                   <span class="summary-sub">같은 6개 시나리오를 이 데이터 크기에서 다시 비교한 결과</span>
                 </div>
@@ -1729,11 +1823,11 @@
               <div class="section-content">
                 <div class="content-grid two">
                   <div class="glass-card">
-                    <div class="card-topline">Lookup Winners At This Size</div>
+                    <div class="card-topline">이 크기에서 lookup 우승 분포</div>
                     <div class="chips-wrap"><span class='glass-chip'><span class='legend-dot habedi'></span>habedi/bptree · lookup wins 3</span><span class='glass-chip'><span class='legend-dot kronuz'></span>Kronuz/cpp-btree · lookup wins 1</span><span class='glass-chip'><span class='legend-dot frozenca'></span>frozenca/BTree · lookup wins 1</span><span class='glass-chip'><span class='legend-dot reum'></span>reum memory_bptree · lookup wins 1</span></div>
                   </div>
                   <div class="glass-card">
-                    <div class="card-topline">Reading Tip</div>
+                    <div class="card-topline">읽을 때 주의할 점</div>
                     <p class="muted">10,000건은 아주 빠른 구간이라 수치가 조금 흔들릴 수 있습니다. 실제 결론은 100,000건과 1,000,000건 쪽에 더 무게를 두고 읽는 것이 안전합니다.</p>
                   </div>
                 </div>
@@ -1747,13 +1841,13 @@
     <table class="ranking-table">
       <thead>
         <tr>
-          <th>Rank</th>
-          <th>Library</th>
-          <th>Family</th>
+          <th>순위</th>
+          <th>라이브러리</th>
+          <th>계열</th>
           <th>Insert ops/s</th>
           <th>Lookup ops/s</th>
-          <th>Insert sec</th>
-          <th>Lookup sec</th>
+          <th>Insert 초</th>
+          <th>Lookup 초</th>
         </tr>
       </thead>
       <tbody>
@@ -1776,13 +1870,13 @@
     <table class="ranking-table">
       <thead>
         <tr>
-          <th>Rank</th>
-          <th>Library</th>
-          <th>Family</th>
+          <th>순위</th>
+          <th>라이브러리</th>
+          <th>계열</th>
           <th>Insert ops/s</th>
           <th>Lookup ops/s</th>
-          <th>Insert sec</th>
-          <th>Lookup sec</th>
+          <th>Insert 초</th>
+          <th>Lookup 초</th>
         </tr>
       </thead>
       <tbody>
@@ -1805,13 +1899,13 @@
     <table class="ranking-table">
       <thead>
         <tr>
-          <th>Rank</th>
-          <th>Library</th>
-          <th>Family</th>
+          <th>순위</th>
+          <th>라이브러리</th>
+          <th>계열</th>
           <th>Insert ops/s</th>
           <th>Lookup ops/s</th>
-          <th>Insert sec</th>
-          <th>Lookup sec</th>
+          <th>Insert 초</th>
+          <th>Lookup 초</th>
         </tr>
       </thead>
       <tbody>
@@ -1834,13 +1928,13 @@
     <table class="ranking-table">
       <thead>
         <tr>
-          <th>Rank</th>
-          <th>Library</th>
-          <th>Family</th>
+          <th>순위</th>
+          <th>라이브러리</th>
+          <th>계열</th>
           <th>Insert ops/s</th>
           <th>Lookup ops/s</th>
-          <th>Insert sec</th>
-          <th>Lookup sec</th>
+          <th>Insert 초</th>
+          <th>Lookup 초</th>
         </tr>
       </thead>
       <tbody>
@@ -1863,13 +1957,13 @@
     <table class="ranking-table">
       <thead>
         <tr>
-          <th>Rank</th>
-          <th>Library</th>
-          <th>Family</th>
+          <th>순위</th>
+          <th>라이브러리</th>
+          <th>계열</th>
           <th>Insert ops/s</th>
           <th>Lookup ops/s</th>
-          <th>Insert sec</th>
-          <th>Lookup sec</th>
+          <th>Insert 초</th>
+          <th>Lookup 초</th>
         </tr>
       </thead>
       <tbody>
@@ -1892,13 +1986,13 @@
     <table class="ranking-table">
       <thead>
         <tr>
-          <th>Rank</th>
-          <th>Library</th>
-          <th>Family</th>
+          <th>순위</th>
+          <th>라이브러리</th>
+          <th>계열</th>
           <th>Insert ops/s</th>
           <th>Lookup ops/s</th>
-          <th>Insert sec</th>
-          <th>Lookup sec</th>
+          <th>Insert 초</th>
+          <th>Lookup 초</th>
         </tr>
       </thead>
       <tbody>

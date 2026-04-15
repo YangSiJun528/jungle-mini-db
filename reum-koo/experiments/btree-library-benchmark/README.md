@@ -146,5 +146,6 @@ python3 reum-koo/experiments/btree-library-benchmark/run_btree_library_benchmark
 ## 참고 메모
 
 - 처음에는 현재 프로젝트에 있던 디스크형 `thirdparty/bplustree`도 후보에 넣어봤다.
-- 하지만 큰 데이터셋에서 assertion으로 중단되어, 최종 비교 세트에서는 제외했다.
+- 재검증 결과 현재 환경에서는 assert를 재현하지 못했고, 대신 큰 value를 쓰는 sparse 대용량 시나리오에서 lookup 값 손상이 먼저 관찰됐다.
+- 따라서 이번 비교표에서는 끝까지 안정적으로 결과를 검증할 수 있었던 후보들만 남기기 위해 최종 세트에서 제외했다.
 - 따라서 현재 결과는 모두 **in-memory** 구현 다섯 개 기준이다.

@@ -39,7 +39,7 @@ SCENARIO_EXPLANATIONS = {
 INCIDENT_LOG = [
     "작업 트리에 로그 파일 변경이 남아 있어서, 원래 저장소를 건드리지 않기 위해 별도 worktree와 `btree-library-benchmark` 브랜치에서 실험을 진행했다.",
     "초기 벤치마크 러너는 단일 record count와 두 가지 시나리오만 지원했는데, 비교 해상도를 높이기 위해 세 가지 데이터셋 크기와 여섯 가지 시나리오를 도는 구조로 확장했다.",
-    "처음 후보에는 프로젝트 내부의 디스크형 `thirdparty/bplustree`도 넣었지만, 100,000건 이상에서 assertion failure로 중단되어 최종 비교군에서 제외했다.",
+    "처음 후보에는 프로젝트 내부의 디스크형 `thirdparty/bplustree`도 넣어봤지만, 재검증 결과 assert보다는 큰 value를 쓰는 sparse 대용량 시나리오에서 lookup 값 손상이 먼저 관찰되어 최종 비교군에서 제외했다.",
     "비교군을 다섯 개로 유지하면서도 끝까지 안정적으로 돌리는 것이 중요하다고 판단해, 제외한 후보 대신 `frozenca/BTree`를 넣어 최종 세트를 완성했다.",
     "제외한 라이브러리의 산출물이 `build/`와 `results/runtime/`에 남아 결과 해석을 흐릴 수 있다는 점을 확인했고, 실행 스크립트가 매번 두 폴더를 재생성하도록 수정했다.",
     "`cmake`가 설치되어 있지 않아, Apple clang의 `cc`와 `c++`를 직접 호출하는 방식으로 빌드 파이프라인을 구성했다.",
