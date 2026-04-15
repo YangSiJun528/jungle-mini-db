@@ -9,12 +9,15 @@
 static void execute_select(const Plan *plan);
 static void execute_select_all_fixed_rows(const TableMetadata *table);
 static void execute_select_by_id(const Plan *plan, const TableMetadata *table);
+static void execute_select_by_column_linear(const Plan *plan, const TableMetadata *table);
 static void execute_insert(const Plan *plan);
 static void print_columns(const TableMetadata *table);
-static int encode_fixed_row(const Plan *plan, char fixed_row[ROW_SIZE]);
+static int encode_fixed_row_values(const char values[MAX_VALUES][MAX_VALUE_SIZE], int value_count, char fixed_row[ROW_SIZE]);
 static int decode_fixed_row(const char fixed_row[ROW_SIZE], char *logical_row, size_t logical_row_size);
 static int parse_id_value(const char *text, int *id);
 static int read_fixed_row_at(const TableMetadata *table, RowLocation location, char fixed_row[ROW_SIZE]);
+static int find_column_index(const TableMetadata *table, const char *column_name);
+static int extract_column_value(const char *logical_row, int column_index, char *value, size_t value_size);
 
 /* 4.1 실행 분기: 파싱된 계획을 SELECT 또는 INSERT 실행으로 보낸다. */
 void execute_plan(const Plan *plan) {
@@ -47,6 +50,11 @@ static void execute_select(const Plan *plan) {
 
     if (plan->condition.type == SELECT_CONDITION_ID_EQUALS) {
         execute_select_by_id(plan, table);
+        return;
+    }
+
+    if (plan->condition.type == SELECT_CONDITION_COLUMN_EQUALS) {
+        execute_select_by_column_linear(plan, table);
         return;
     }
 
@@ -110,22 +118,86 @@ static void execute_select_by_id(const Plan *plan, const TableMetadata *table) {
     printf("%s\n", logical_row);
 }
 
+/* 4.3 SELECT 비-id 조건 조회: 전체 fixed row를 스캔하며 일치하는 row를 찾는다. */
+static void execute_select_by_column_linear(const Plan *plan, const TableMetadata *table) {
+    FILE *file;
+    char fixed_row[ROW_SIZE];
+    char logical_row[MAX_INPUT_SIZE];
+    char column_value[MAX_VALUE_SIZE];
+    int column_index = find_column_index(table, plan->condition.column_name);
+
+    if (column_index < 0) {
+        printf("존재하지 않는 컬럼입니다\n");
+        return;
+    }
+
+    file = fopen(table->csv_file_path, "rb");
+    if (file == NULL) {
+        printf("CSV 파일을 열 수 없습니다\n");
+        return;
+    }
+
+    print_columns(table);
+    while (1) {
+        size_t read_size = fread(fixed_row, 1, ROW_SIZE, file);
+
+        if (read_size == 0) {
+            break;
+        }
+
+        if (read_size != ROW_SIZE || !decode_fixed_row(fixed_row, logical_row, sizeof(logical_row)) ||
+            !extract_column_value(logical_row, column_index, column_value, sizeof(column_value))) {
+            printf("데이터 파일이 올바르지 않습니다\n");
+            break;
+        }
+
+        if (strcmp(column_value, plan->condition.comparison_value) == 0) {
+            printf("%s\n", logical_row);
+        }
+    }
+
+    fclose(file);
+}
+
 /* 4.4 INSERT 행 추가: 고정 길이 row를 파일 끝에 쓰고 인덱스를 갱신한다. */
 static void execute_insert(const Plan *plan) {
     const TableMetadata *table = find_table(plan->table_name);
     FILE *file;
     RowLocation location;
     char fixed_row[ROW_SIZE];
+    char insert_values[MAX_VALUES][MAX_VALUE_SIZE] = {{0}};
     int id;
     int found;
+    int insert_value_count;
 
     if (table == NULL) {
         printf("실행할 수 없는 계획입니다\n");
         return;
     }
 
-    if (!parse_id_value(plan->values[0], &id)) {
-        printf("id는 정수여야 합니다\n");
+    if (plan->value_count == table->column_count) {
+        insert_value_count = plan->value_count;
+        if (!parse_id_value(plan->values[0], &id) || id <= 0) {
+            printf("id는 1 이상의 정수여야 합니다\n");
+            return;
+        }
+
+        for (int i = 0; i < insert_value_count; i++) {
+            snprintf(insert_values[i], sizeof(insert_values[i]), "%s", plan->values[i]);
+        }
+    } else if (plan->value_count == table->column_count - 1) {
+        insert_value_count = table->column_count;
+        if (db_index_next_id(plan->table_name, &id) != 1) {
+            printf("자동 id를 준비할 수 없습니다\n");
+            return;
+        }
+
+        snprintf(insert_values[0], sizeof(insert_values[0]), "%d", id);
+        for (int i = 0; i < plan->value_count; i++) {
+            snprintf(insert_values[i + 1], sizeof(insert_values[i + 1]), "%s", plan->values[i]);
+        }
+    } else {
+        printf("컬럼 개수와 값 개수가 맞지 않습니다\n");
         return;
     }
 
@@ -139,7 +211,7 @@ static void execute_insert(const Plan *plan) {
         return;
     }
 
-    if (!encode_fixed_row(plan, fixed_row)) {
+    if (!encode_fixed_row_values(insert_values, insert_value_count, fixed_row)) {
         printf("row size를 초과했습니다\n");
         return;
     }
@@ -178,18 +250,18 @@ static void print_columns(const TableMetadata *table) {
 }
 
 /* 5.2 고정 길이 row 저장: INSERT 값 목록을 64 bytes fixed row로 변환한다. */
-static int encode_fixed_row(const Plan *plan, char fixed_row[ROW_SIZE]) {
+static int encode_fixed_row_values(const char values[MAX_VALUES][MAX_VALUE_SIZE], int value_count, char fixed_row[ROW_SIZE]) {
     size_t length = 0;
 
     memset(fixed_row, ROW_PADDING_CHAR, ROW_SIZE);
-    for (int i = 0; i < plan->value_count; i++) {
-        size_t value_length = strlen(plan->values[i]);
+    for (int i = 0; i < value_count; i++) {
+        size_t value_length = strlen(values[i]);
 
         if (length + value_length + 1 > ROW_DATA_SIZE) {
             return 0;
         }
 
-        memcpy(fixed_row + length, plan->values[i], value_length);
+        memcpy(fixed_row + length, values[i], value_length);
         length += value_length;
         fixed_row[length] = ',';
         length++;
@@ -262,4 +334,45 @@ static int read_fixed_row_at(const TableMetadata *table, RowLocation location, c
     read_size = fread(fixed_row, 1, ROW_SIZE, file);
     fclose(file);
     return read_size == ROW_SIZE;
+}
+
+/* 내부 구현: 컬럼 이름을 현재 테이블의 컬럼 순서로 바꾼다. */
+static int find_column_index(const TableMetadata *table, const char *column_name) {
+    for (int i = 0; i < table->column_count; i++) {
+        if (strcmp(table->columns[i], column_name) == 0) {
+            return i;
+        }
+    }
+
+    return -1;
+}
+
+/* 내부 구현: CSV 형태 logical row에서 지정한 컬럼 값을 잘라낸다. */
+static int extract_column_value(const char *logical_row, int column_index, char *value, size_t value_size) {
+    const char *start = logical_row;
+    int current_index = 0;
+
+    while (start != NULL) {
+        const char *end = strchr(start, ',');
+        size_t length = end == NULL ? strlen(start) : (size_t) (end - start);
+
+        if (current_index == column_index) {
+            if (length + 1 > value_size) {
+                return 0;
+            }
+
+            memcpy(value, start, length);
+            value[length] = '\0';
+            return 1;
+        }
+
+        if (end == NULL) {
+            break;
+        }
+
+        start = end + 1;
+        current_index++;
+    }
+
+    return 0;
 }

@@ -2,8 +2,12 @@
 from __future__ import annotations
 
 import json
+import re
 import sys
 from pathlib import Path
+
+
+HOOK_SCRIPT_RE = re.compile(r"\.codex/hooks/([^\s\"']+\.py)")
 
 
 def read_text(path: Path) -> str:
@@ -52,8 +56,14 @@ def main() -> int:
             for group in submit_hooks:
                 for item in group.get("hooks", []):
                     command = item.get("command", "")
-                    if ".codex/hooks/" in command and command.endswith(".py\""):
-                        script_fragment = command.split(".codex/hooks/", 1)[1].rsplit('"', 1)[0]
+                    if "$(" in command or "`" in command:
+                        issues.append(
+                            "Hook command depends on shell substitution; use a repo-root-relative path such as '/usr/bin/python3 .codex/hooks/user_prompt_submit_log.py'"
+                        )
+
+                    match = HOOK_SCRIPT_RE.search(command)
+                    if match:
+                        script_fragment = match.group(1)
                         hook_script_path = repo / ".codex" / "hooks" / script_fragment
                         break
                 if hook_script_path:

@@ -59,6 +59,8 @@ Plan parse_sql(const char *sql) {
 static Plan parse_select(const char *sql) {
     Parser parser = make_parser(sql);
     char table_name[MAX_TABLE_NAME_SIZE];
+    char column_name[MAX_TABLE_NAME_SIZE] = "";
+    char comparison_value[MAX_VALUE_SIZE] = "";
     SelectCondition condition = {0};
 
     expect_text(&parser, "select");
@@ -74,20 +76,32 @@ static Plan parse_select(const char *sql) {
         if (!starts_with(parser.cursor, "where")) {
             set_parser_error(&parser, "지원하지 않는 SELECT 문법입니다");
         } else {
-            condition.type = SELECT_CONDITION_ID_EQUALS;
             expect_text(&parser, "where");
             skip_spaces(&parser);
-            if (!parser.has_error && !starts_with(parser.cursor, "id")) {
-                set_parser_error(&parser, "지원하지 않는 SELECT 문법입니다");
-            }
-            expect_text(&parser, "id");
+            read_name(&parser, column_name, sizeof(column_name));
             skip_spaces(&parser);
             if (!parser.has_error && *parser.cursor != '=') {
                 set_parser_error(&parser, "지원하지 않는 SELECT 문법입니다");
             }
             expect_char(&parser, '=');
             skip_spaces(&parser);
-            read_integer(&parser, &condition.id_value);
+
+            if (!parser.has_error && strcmp(column_name, "id") == 0) {
+                condition.type = SELECT_CONDITION_ID_EQUALS;
+                snprintf(condition.column_name, sizeof(condition.column_name), "%s", column_name);
+                read_integer(&parser, &condition.id_value);
+                if (!parser.has_error) {
+                    snprintf(condition.comparison_value, sizeof(condition.comparison_value), "%d", condition.id_value);
+                }
+            } else {
+                condition.type = SELECT_CONDITION_COLUMN_EQUALS;
+                snprintf(condition.column_name, sizeof(condition.column_name), "%s", column_name);
+                read_name(&parser, comparison_value, sizeof(comparison_value));
+                if (!parser.has_error) {
+                    snprintf(condition.comparison_value, sizeof(condition.comparison_value), "%s", comparison_value);
+                }
+            }
+
             skip_spaces(&parser);
             if (!parser.has_error && *parser.cursor != ';') {
                 set_parser_error(&parser, "지원하지 않는 SELECT 문법입니다");
@@ -295,14 +309,31 @@ static void read_until_semicolon(Parser *parser, char *buffer, size_t buffer_siz
 
 static Plan build_select_plan(Parser *parser, const char *table_name, SelectCondition condition) {
     Plan plan = {0};
+    const TableMetadata *table;
+    int column_found = 0;
 
     if (parser->has_error) {
         return parser->error_plan;
     }
 
-    if (find_table(table_name) == NULL) {
+    table = find_table(table_name);
+    if (table == NULL) {
         set_error(&plan, "존재하지 않는 테이블입니다");
         return plan;
+    }
+
+    if (condition.type != SELECT_CONDITION_NONE) {
+        for (int i = 0; i < table->column_count; i++) {
+            if (strcmp(table->columns[i], condition.column_name) == 0) {
+                column_found = 1;
+                break;
+            }
+        }
+
+        if (!column_found) {
+            set_error(&plan, "존재하지 않는 컬럼입니다");
+            return plan;
+        }
     }
 
     plan.type = QUERY_SELECT;
@@ -351,7 +382,7 @@ static Plan build_insert_plan(Parser *parser, const char *table_name, char *valu
         token = strtok(NULL, ",");
     }
 
-    if (token != NULL || plan.value_count != table->column_count) {
+    if (token != NULL || (plan.value_count != table->column_count && plan.value_count != table->column_count - 1)) {
         set_error(&plan, "컬럼 개수와 값 개수가 맞지 않습니다");
         return plan;
     }

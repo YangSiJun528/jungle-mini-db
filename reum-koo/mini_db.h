@@ -22,11 +22,14 @@ typedef enum {
 /* 공유 계약: 3.3 SELECT id 조건 조회 파싱 결과를 담는다. */
 typedef enum {
     SELECT_CONDITION_NONE = 0,
-    SELECT_CONDITION_ID_EQUALS
+    SELECT_CONDITION_ID_EQUALS,
+    SELECT_CONDITION_COLUMN_EQUALS
 } SelectConditionType;
 
 typedef struct {
     SelectConditionType type;
+    char column_name[MAX_TABLE_NAME_SIZE];
+    char comparison_value[MAX_VALUE_SIZE];
     int id_value;
 } SelectCondition;
 
@@ -50,7 +53,6 @@ typedef struct {
     const char *columns[MAX_VALUES];
     int column_count;
     const char *csv_file_path;
-    const char *index_file_path;
     int row_size;
 } TableMetadata;
 
@@ -63,5 +65,6 @@ int db_index_open_table(const TableMetadata *table, char *error_message, size_t 
 void db_index_shutdown_all(void);
 int db_index_get(const char *table_name, int id, RowLocation *location);
 int db_index_put(const char *table_name, int id, RowLocation location);
+int db_index_next_id(const char *table_name, int *next_id);
 
 #endif

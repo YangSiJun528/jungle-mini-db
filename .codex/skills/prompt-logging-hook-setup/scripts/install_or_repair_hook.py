@@ -17,7 +17,7 @@ HOOKS_JSON = {
                 "hooks": [
                     {
                         "type": "command",
-                        "command": '/usr/bin/python3 "$(git rev-parse --show-toplevel)/.codex/hooks/user_prompt_submit_log.py"',
+                        "command": "/usr/bin/python3 .codex/hooks/user_prompt_submit_log.py",
                         "statusMessage": "Logging prompt",
                     }
                 ]

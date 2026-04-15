@@ -6,7 +6,7 @@ docs/004-bplus-tree-index.md:
 
 - load at least 1,000,000 records through INSERT by default
 - measure SELECT by id through the mini DB B+Tree index path
-- measure SELECT by another field through a fixed-row linear scan
+- measure SELECT by another field through the mini DB linear scan path
 - compare both elapsed times
 
 Runtime requirement: Python 3 standard library only. No venv or third-party
@@ -232,7 +232,7 @@ def load_records_with_insert(executable, records):
     for start_id in range(1, records + 1, 10000):
         end_id = min(start_id + 9999, records)
         commands = [
-            "insert into users values (%d,%s);\n" % (record_id, fixed_user_name(record_id))
+            "insert into users values (%s);\n" % fixed_user_name(record_id)
             for record_id in range(start_id, end_id + 1)
         ]
         process.stdin.write("".join(commands).encode("ascii"))
@@ -285,32 +285,11 @@ def measure_indexed_select(executable, target_id, repetitions):
     return run_mini_db_batch(executable, commands + ".exit\n")
 
 
-def decode_fixed_row(raw_row):
-    if len(raw_row) != ROW_SIZE or raw_row[-1:] != b"\n":
-        raise ValueError("invalid fixed row")
-
-    return raw_row[:ROW_DATA_SIZE].decode("ascii").rstrip(ROW_PADDING).rstrip(",")
-
-
-def linear_select_by_name(target_name):
-    with USERS_CSV.open("rb") as file:
-        while True:
-            raw_row = file.read(ROW_SIZE)
-            if raw_row == b"":
-                break
-            logical_row = decode_fixed_row(raw_row)
-            columns = logical_row.split(",")
-            if len(columns) >= 2 and columns[1] == target_name:
-                return logical_row
-
-    raise LookupError("name not found by linear scan: %s" % target_name)
-
-
-def measure_linear_select(target_name, repetitions):
-    started = time.perf_counter()
-    for _ in range(repetitions):
-        linear_select_by_name(target_name)
-    return time.perf_counter() - started
+def measure_linear_select(executable, target_name, repetitions):
+    commands = "".join(
+        "select * from users where name = %s;\n" % target_name for _ in range(repetitions)
+    )
+    return run_mini_db_batch(executable, commands + ".exit\n")
 
 
 def write_output(path, result):
@@ -338,8 +317,8 @@ def print_result(result):
     )
     print("- linear/indexed elapsed ratio: %.2fx" % result.speedup)
     print()
-    print("note: indexed SELECT is measured through the mini DB SQL path.")
-    print("note: non-id SELECT is measured by scanning fixed-row users.csv linearly because SQL only supports where id.")
+    print("note: both SELECT paths are measured through the mini DB SQL path.")
+    print("note: id uses the in-memory B+Tree and name uses executor linear scan.")
 
 
 def main():
@@ -374,7 +353,7 @@ def main():
 
         print_progress("[4/4] measuring SELECT performance")
         indexed_seconds = measure_indexed_select(executable, target_id, args.select_repetitions)
-        linear_seconds = measure_linear_select(target_name, args.select_repetitions)
+        linear_seconds = measure_linear_select(executable, target_name, args.select_repetitions)
 
         result = BenchmarkResult(
             records=args.records,
