@@ -189,8 +189,12 @@ $RECYCLE.BIN/
 # End of https://www.toptal.com/developers/gitignore/api/jetbrains+all,visualstudiocode,macos,windows,cmake
 
 # Generated mini-db index files
-data/*.idx
-data/*.idx.boot
+**/data/*.idx
+**/data/*.idx.boot
+
+# Generated mini-db executables
+**/mini_db
+**/jungle_mini_db
 
 # Generated benchmark outputs
 **/benchmark-results/
