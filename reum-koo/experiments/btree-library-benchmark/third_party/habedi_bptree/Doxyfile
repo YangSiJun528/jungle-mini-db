@@ -1,0 +1,35 @@
+# Doxyfile configuration
+# Doxygen version 1.9.8
+
+#---------------------------------------------------------------------------
+# Project-related settings
+#---------------------------------------------------------------------------
+PROJECT_NAME       = "Bptree"
+OUTPUT_DIRECTORY   = doc
+CREATE_SUBDIRS     = NO
+
+#---------------------------------------------------------------------------
+# Input settings
+#---------------------------------------------------------------------------
+INPUT              = .
+FILE_PATTERNS      = *.c *.h *.cpp *.hpp
+RECURSIVE          = YES
+EXTRACT_ALL        = YES
+EXCLUDE_PATTERNS   = tmp
+
+#---------------------------------------------------------------------------
+# Output formats
+#---------------------------------------------------------------------------
+# HTML output will be placed in doc/html
+GENERATE_HTML      = YES
+HTML_OUTPUT        = html
+
+# LaTeX output will be placed in doc/latex
+GENERATE_LATEX     = NO
+LATEX_OUTPUT       = latex
+
+#---------------------------------------------------------------------------
+# Optional tweaks
+#---------------------------------------------------------------------------
+QUIET              = YES
+WARNINGS           = NO
