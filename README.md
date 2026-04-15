@@ -10,4 +10,22 @@
 
 <img width="1412" height="783" alt="image" src="https://github.com/user-attachments/assets/5f670ac2-de35-453a-8ccb-1c01f0f22267" />
 
+# B+Tree BETWEEN 성능 비교
 
+테스트 조건:
+
+- 데이터 수: 1,000,000 rows
+- Row 크기: 64 bytes fixed row
+- 쿼리: `SELECT * FROM users WHERE id BETWEEN 999991 AND 1000000;`
+- 결과 row 수: 10 rows
+- 반복 횟수: 50회
+- 빌드 옵션: `clang -O2`
+
+| 방식 | 총 실행 시간 | 평균 실행 시간 | 비고 |
+|---|---:|---:|---|
+| B+Tree 인덱스 BETWEEN | 0.0113초 | 0.226ms | 인덱스로 시작 id 위치를 찾고 leaf를 순회 |
+| 선형 스캔 BETWEEN | 2.1639초 | 43.277ms | CSV 1,000,000 rows 전체 스캔 |
+| 성능 차이 | 약 191.7배 빠름 | - | B+Tree 기준 |
+
+인덱스 생성 시간은 약 3.42초였다.  
+프로그램 시작 시 인덱스 검증 비용은 약 2.08초였으며, 위 비교에서는 순수 쿼리 실행 시간만 비교했다.
