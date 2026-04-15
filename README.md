@@ -321,11 +321,58 @@ id,name
 * * *
 
 ## 벤치마크
-<img width="1600" height="960" alt="image (1)" src="https://github.com/user-attachments/assets/abd68d49-ec31-49af-8ed4-4f6f3b9cc6dc" />
+### 메모리 벤치마크
+<img width="600" height="960" alt="image (1)" src="https://github.com/user-attachments/assets/abd68d49-ec31-49af-8ed4-4f6f3b9cc6dc" />
 
-<img width="1334" height="800" alt="Gemini_Generated_Image_he81uohe81uohe81" src="https://github.com/user-attachments/assets/add6cd3e-a0be-47e4-a2b4-adf85efef4bb" />
-<img width="1500" height="900" alt="Code_Generated_Image (3)" src="https://github.com/user-attachments/assets/1b30964c-7198-4841-aa12-fd808282ea71" />
+B+Tree 인덱스를 메모리에 직접 유지하는 방식과 파일 기반으로 유지하는 방식을 비교했다.
+측정값은 key insert 이후 프로세스의 RSS 증가량 기준이다.
 
+| Insert key 수 | Memory 기반 인덱스 RSS 증가량 | File 기반 인덱스 RSS 증가량 |
+|---:|---:|---:|
+| 100,000 | 5.30 MiB | 0.03 MiB |
+| 500,000 | 26.27 MiB | 0.03 MiB |
+| 1,000,000 | 52.56 MiB | 0.03 MiB |
+| 2,000,000 | 105.09 MiB | 0.05 MiB |
+| 5,000,000 | 262.64 MiB | 0.03 MiB |
+| 10,000,000 | 525.25 MiB | 0.03 MiB |
+
+### between & where 벤치마크
+<img width="480" alt="Gemini_Generated_Image_he81uohe81uohe81" src="https://github.com/user-attachments/assets/add6cd3e-a0be-47e4-a2b4-adf85efef4bb" />
+<img width="480" alt="Code_Generated_Image (3)" src="https://github.com/user-attachments/assets/1b30964c-7198-4841-aa12-fd808282ea71" />
+
+`WHERE id = ?` 단건 조회에서 B+Tree 인덱스를 사용하는 방식과 인덱스 없이 선형 탐색하는 방식을 비교했다.
+측정값은 SQL parsing, 출력 formatting, 인덱스 생성, 인덱스 검증 시간을 제외한 순수 조회 경로의 평균 시간 기준이다.
+
+단건 조회는 앞쪽 5%, 20%, 50%, 75%, 뒤쪽 95%, 존재하지 않는 id 조회 케이스를 포함한다.
+각 케이스는 반복 실행했으며, 아래 표는 케이스별 `average` 값을 다시 평균낸 요약이다.
+
+| 데이터 개수 | B+Tree 사용 평균 시간 | B+Tree 미사용 평균 시간 | 성능 차이 |
+|---:|---:|---:|---:|
+| 100,000 | 0.0015 ms | 0.0182 ms | 약 12배 |
+| 500,000 | 0.0016 ms | 0.0996 ms | 약 61배 |
+| 1,000,000 | 0.0016 ms | 0.1918 ms | 약 122배 |
+| 2,000,000 | 0.0020 ms | 0.4118 ms | 약 202배 |
+| 5,000,000 | 0.0016 ms | 1.0683 ms | 약 667배 |
+| 10,000,000 | 0.0065 ms | 2.0461 ms | 약 313배 |
+
+
+
+`WHERE id BETWEEN start AND start + 9` 범위 조회에서 B+Tree 인덱스를 사용하는 방식과 인덱스 없이 선형 탐색하는 방식을 비교했다.
+측정값은 SQL parsing, 출력 formatting, 인덱스 생성, 인덱스 검증 시간을 제외한 순수 조회 경로의 평균 시간 기준이다.
+
+범위 조회는 앞쪽 5%, 20%, 50%, 75%, 뒤쪽 95% 케이스를 포함한다.
+각 케이스는 항상 10개 row가 나오도록 `start ~ start + 9` 범위를 사용했고, 반복 실행 후 케이스별 `average` 값을 다시 평균냈다.
+
+| 데이터 개수 | B+Tree 사용 평균 시간 | B+Tree 미사용 평균 시간 | 성능 차이 |
+|---:|---:|---:|---:|
+| 100,000 | 0.0016 ms | 0.0180 ms | 약 11배 |
+| 500,000 | 0.0017 ms | 0.0917 ms | 약 55배 |
+| 1,000,000 | 0.0024 ms | 0.3036 ms | 약 127배 |
+| 2,000,000 | 0.0016 ms | 0.3847 ms | 약 243배 |
+| 5,000,000 | 0.0016 ms | 0.9605 ms | 약 593배 |
+| 10,000,000 | 0.0021 ms | 2.0099 ms | 약 944배 |
+
+성능 차이는 `B+Tree 미사용 평균 시간 / B+Tree 사용 평균 시간`으로 계산했다.
 * * *
 
 ## 코드 복잡도 비교
