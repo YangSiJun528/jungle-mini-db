@@ -320,16 +320,11 @@ id,name
 
 * * *
 
-## 벤치마크 방향
+## 벤치마크
+<img width="1600" height="960" alt="image (1)" src="https://github.com/user-attachments/assets/abd68d49-ec31-49af-8ed4-4f6f3b9cc6dc" />
 
-대규모 데이터 테스트는 다음 기준으로 진행합니다.
-
-- 1,000,000개 이상의 레코드 준비
-- `id` 기준 SELECT는 B+ Tree 인덱스 사용
-- 다른 필드 기준 SELECT는 데이터 파일 선형 탐색
-- 두 방식의 실행 시간 비교
-
-핵심은 단순한 실행 시간 수치가 아니라, 데이터가 많아질수록 전체 스캔과 인덱스 조회의 경로 차이가 어떻게 드러나는지 확인하는 것입니다.
+<img width="1334" height="800" alt="Gemini_Generated_Image_he81uohe81uohe81" src="https://github.com/user-attachments/assets/add6cd3e-a0be-47e4-a2b4-adf85efef4bb" />
+<img width="1500" height="900" alt="Code_Generated_Image (3)" src="https://github.com/user-attachments/assets/1b30964c-7198-4841-aa12-fd808282ea71" />
 
 * * *
 
