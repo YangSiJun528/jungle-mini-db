@@ -113,7 +113,9 @@ select * from users where id between 101 and 103;
 ```sql
 insert into users values (104,new-user);
 ```
-
+```sql
+select * from users where id = 104;
+```
 ```text
 1. 입력 값을 파싱한다.
 2. row 크기가 64 bytes를 넘지 않는지 확인한다.
